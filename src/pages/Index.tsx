@@ -12,8 +12,17 @@ const Index = () => {
   const [email, setEmail] = useState('');
   const [emailOptIn, setEmailOptIn] = useState(false);
   const handleBuyNow = (planName: string) => {
-    const billing = isYearly ? 'yearly' : 'monthly';
-    navigate(`/checkout?plan=${encodeURIComponent(planName)}&billing=${billing}`);
+    try {
+      if (!planName) {
+        console.error('Plan name is required');
+        return;
+      }
+      const billing = isYearly ? 'yearly' : 'monthly';
+      navigate(`/checkout?plan=${encodeURIComponent(planName)}&billing=${billing}`);
+    } catch (error) {
+      console.error('Error navigating to checkout:', error);
+      alert('Unable to proceed to checkout. Please try again.');
+    }
   };
   const pricingData = {
     yearly: {

