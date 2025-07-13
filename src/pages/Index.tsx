@@ -22,8 +22,8 @@ const Index = () => {
       try {
         // Connect to WebSocket with proper environment handling
         const socketUrl = process.env.NODE_ENV === 'production' 
-          ? window.location.origin.replace(/^http/, 'ws')
-          : 'ws://localhost:3001';
+          ? window.location.origin
+          : 'http://localhost:3001';
         
         const newSocket = io(socketUrl, {
           timeout: 10000,
