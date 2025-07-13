@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Check, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { io, Socket } from 'socket.io-client';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 
@@ -13,6 +14,119 @@ const Index = () => {
   const [email, setEmail] = useState('');
   const [emailOptIn, setEmailOptIn] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
+  const [socket, setSocket] = useState<Socket | null>(null);
+
+  // Set up visitor tracking when component mounts
+  useEffect(() => {
+    const connectSocket = () => {
+      try {
+        // Connect to WebSocket with proper environment handling
+        const socketUrl = process.env.NODE_ENV === 'production' 
+          ? window.location.origin.replace(/^http/, 'ws')
+          : 'ws://localhost:3001';
+        
+        const newSocket = io(socketUrl, {
+          timeout: 10000,
+          reconnection: true,
+          reconnectionAttempts: 5,
+          reconnectionDelay: 2000,
+          transports: ['websocket', 'polling']
+        });
+        setSocket(newSocket);
+
+        newSocket.on('connect', () => {
+          console.log('Connected to WebSocket server for visitor tracking');
+          
+          // Send visitor joined event with IP address
+          const visitorData = {
+            ipAddress: 'Fetching IP...',
+            timestamp: new Date().toISOString(),
+            userAgent: navigator.userAgent
+          };
+          
+          // Fetch real IP address
+          fetch('https://api.ipify.org?format=json')
+            .then(response => response.json())
+            .then(data => {
+              const updatedVisitorData = {
+                ...visitorData,
+                ipAddress: data.ip
+              };
+              newSocket.emit('visitor-joined', updatedVisitorData);
+            })
+            .catch(() => {
+              // Fallback if IP service fails
+              const fallbackData = {
+                ...visitorData,
+                ipAddress: 'Unknown IP'
+              };
+              newSocket.emit('visitor-joined', fallbackData);
+            });
+        });
+
+        newSocket.on('disconnect', () => {
+          console.log('Disconnected from WebSocket server');
+        });
+
+        return newSocket;
+      } catch (error) {
+        console.error('Error connecting to WebSocket for visitor tracking:', error);
+        return null;
+      }
+    };
+
+    const socketInstance = connectSocket();
+
+    // Handle page visibility change and unload
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && socketInstance) {
+        // User is leaving/minimizing - emit visitor left
+        fetch('https://api.ipify.org?format=json')
+          .then(response => response.json())
+          .then(data => {
+            socketInstance.emit('visitor-left', { ipAddress: data.ip });
+          })
+          .catch(() => {
+            socketInstance.emit('visitor-left', { ipAddress: 'Unknown IP' });
+          });
+      }
+    };
+
+    const handleBeforeUnload = () => {
+      if (socketInstance) {
+        fetch('https://api.ipify.org?format=json')
+          .then(response => response.json())
+          .then(data => {
+            socketInstance.emit('visitor-left', { ipAddress: data.ip });
+            socketInstance.disconnect();
+          })
+          .catch(() => {
+            socketInstance.emit('visitor-left', { ipAddress: 'Unknown IP' });
+            socketInstance.disconnect();
+          });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      if (socketInstance) {
+        fetch('https://api.ipify.org?format=json')
+          .then(response => response.json())
+          .then(data => {
+            socketInstance.emit('visitor-left', { ipAddress: data.ip });
+            socketInstance.disconnect();
+          })
+          .catch(() => {
+            socketInstance.emit('visitor-left', { ipAddress: 'Unknown IP' });
+            socketInstance.disconnect();
+          });
+      }
+    };
+  }, []);
 
   const handleBuyNow = (planName: string) => {
     try {

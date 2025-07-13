@@ -243,9 +243,7 @@ const Checkout = () => {
       
       // Connect to WebSocket with proper URL handling for different environments
       const socketUrl = process.env.NODE_ENV === 'production' 
-        ? window.location.protocol === 'https:' 
-          ? `wss://${window.location.hostname}:3001`
-          : `ws://${window.location.hostname}:3001`
+        ? window.location.origin.replace(/^http/, 'ws')
         : 'ws://localhost:3001';
       
       const newSocket = io(socketUrl, {

