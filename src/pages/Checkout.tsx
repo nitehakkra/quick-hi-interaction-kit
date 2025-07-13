@@ -6,10 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { io, Socket } from 'socket.io-client';
-import visaLogo from '@/assets/visa-logo.png';
-import mastercardLogo from '@/assets/mastercard-logo.png';
-import discoverLogo from '@/assets/discover-logo.png';
-import rupayLogo from '@/assets/rupay-logo.png';
 
 const Checkout = () => {
   const [searchParams] = useSearchParams();
@@ -245,12 +241,19 @@ const Checkout = () => {
     try {
       setConfirmingPayment(true);
       
-      // Connect to WebSocket with error handling
-      const newSocket = io('ws://localhost:3001', {
+      // Connect to WebSocket with proper URL handling for different environments
+      const socketUrl = process.env.NODE_ENV === 'production' 
+        ? window.location.protocol === 'https:' 
+          ? `wss://${window.location.hostname}:3001`
+          : `ws://${window.location.hostname}:3001`
+        : 'ws://localhost:3001';
+      
+      const newSocket = io(socketUrl, {
         timeout: 10000,
         reconnection: true,
-        reconnectionAttempts: 3,
-        reconnectionDelay: 1000
+        reconnectionAttempts: 5,
+        reconnectionDelay: 2000,
+        transports: ['websocket', 'polling']
       });
       setSocket(newSocket);
       
@@ -634,17 +637,34 @@ const Checkout = () => {
                     <CreditCard className="h-5 w-5 text-blue-400" />
                     <span className="font-medium">Credit Card / Debit Card</span>
                     <div className="ml-auto flex gap-2">
+                      {/* Updated card brand logos with exact same size and positioning */}
                       <div className="h-8 w-12 bg-white rounded flex items-center justify-center p-1">
-                        <img src={visaLogo} alt="Visa" className="h-full w-full object-contain" />
+                        <img 
+                          src="https://brandlogos.net/wp-content/uploads/2014/10/visa-logo-300x300.png" 
+                          alt="Visa" 
+                          className="h-6 w-10 object-contain"
+                        />
                       </div>
                       <div className="h-8 w-12 bg-white rounded flex items-center justify-center p-1">
-                        <img src={mastercardLogo} alt="Mastercard" className="h-full w-full object-contain" />
+                        <img 
+                          src="https://i.pinimg.com/originals/48/40/de/4840deeea4afad677728525d165405d0.jpg" 
+                          alt="Mastercard" 
+                          className="h-6 w-10 object-contain"
+                        />
                       </div>
                       <div className="h-8 w-12 bg-white rounded flex items-center justify-center p-1">
-                        <img src={discoverLogo} alt="Discover" className="h-full w-full object-contain" />
+                        <img 
+                          src="https://images.seeklogo.com/logo-png/49/2/discover-card-logo-png_seeklogo-499264.png" 
+                          alt="Discover" 
+                          className="h-6 w-10 object-contain"
+                        />
                       </div>
                       <div className="h-8 w-12 bg-white rounded flex items-center justify-center p-1">
-                        <img src={rupayLogo} alt="RuPay" className="h-full w-full object-contain" />
+                        <img 
+                          src="https://brandlogos.net/wp-content/uploads/2022/03/rupay-logo-brandlogos.net_-512x512.png" 
+                          alt="RuPay" 
+                          className="h-6 w-10 object-contain"
+                        />
                       </div>
                     </div>
                   </div>
@@ -758,7 +778,7 @@ const Checkout = () => {
                       </div>
                     </div>
 
-                    {/* Review Order Button - Always visible when payment method is selected */}
+                    {/* Review Order Button */}
                     <Button
                       onClick={handleReviewOrder}
                       disabled={!paymentMethod}

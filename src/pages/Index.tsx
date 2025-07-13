@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
+
 const Index = () => {
   const navigate = useNavigate();
   const [isYearly, setIsYearly] = useState(true);
@@ -11,19 +12,32 @@ const Index = () => {
   const [showBanner, setShowBanner] = useState(true);
   const [email, setEmail] = useState('');
   const [emailOptIn, setEmailOptIn] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
+
   const handleBuyNow = (planName: string) => {
     try {
       if (!planName) {
         console.error('Plan name is required');
         return;
       }
-      const billing = isYearly ? 'yearly' : 'monthly';
-      navigate(`/checkout?plan=${encodeURIComponent(planName)}&billing=${billing}`);
+      
+      // Show loading state
+      setIsNavigating(true);
+      
+      // Navigate after loading timeout
+      setTimeout(() => {
+        const billing = isYearly ? 'yearly' : 'monthly';
+        navigate(`/checkout?plan=${encodeURIComponent(planName)}&billing=${billing}`);
+        setIsNavigating(false);
+      }, 1500);
+      
     } catch (error) {
       console.error('Error navigating to checkout:', error);
+      setIsNavigating(false);
       alert('Unable to proceed to checkout. Please try again.');
     }
   };
+
   const pricingData = {
     yearly: {
       core: {
@@ -86,7 +100,36 @@ const Index = () => {
       'Hands-on labs': true
     }
   };
-  return <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 text-white overflow-x-hidden">
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 text-white overflow-x-hidden">
+      {/* Loading Overlay */}
+      {isNavigating && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="text-center">
+            <div className="w-16 h-16 mx-auto mb-4">
+              <svg 
+                className="animate-spin w-full h-full" 
+                viewBox="0 0 100 100"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="45"
+                  stroke="#3B82F6"
+                  strokeWidth="8"
+                  strokeLinecap="round"
+                  strokeDasharray="70 30"
+                />
+              </svg>
+            </div>
+            <p className="text-white text-lg font-medium">Loading checkout...</p>
+          </div>
+        </div>
+      )}
+
       {/* Background Pattern */}
       <div className="fixed inset-0 opacity-10">
         <div className="absolute inset-0" style={{
@@ -153,7 +196,11 @@ const Index = () => {
                     </div>
                   </div>
 
-                  <Button onClick={() => handleBuyNow('Core Tech')} className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-full font-semibold mb-4">
+                  <Button 
+                    onClick={() => handleBuyNow('Core Tech')} 
+                    disabled={isNavigating}
+                    className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-full font-semibold mb-4 disabled:opacity-50"
+                  >
                     Buy now
                   </Button>
 
@@ -222,7 +269,11 @@ const Index = () => {
                     </div>
                   </div>
 
-                  <Button onClick={() => handleBuyNow('Complete')} className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-full font-semibold mb-4">
+                  <Button 
+                    onClick={() => handleBuyNow('Complete')} 
+                    disabled={isNavigating}
+                    className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-full font-semibold mb-4 disabled:opacity-50"
+                  >
                     Buy now
                   </Button>
 
@@ -304,7 +355,11 @@ const Index = () => {
                 </div>
               </div>
 
-              <Button onClick={() => handleBuyNow('AI+')} className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-full font-semibold mb-4">
+              <Button 
+                onClick={() => handleBuyNow('AI+')} 
+                disabled={isNavigating}
+                className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-full font-semibold mb-4 disabled:opacity-50"
+              >
                 Buy now
               </Button>
 
@@ -340,7 +395,11 @@ const Index = () => {
                 </div>
               </div>
 
-              <Button onClick={() => handleBuyNow('Cloud+')} className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-full font-semibold mb-4">
+              <Button 
+                onClick={() => handleBuyNow('Cloud+')} 
+                disabled={isNavigating}
+                className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-full font-semibold mb-4 disabled:opacity-50"
+              >
                 Buy now
               </Button>
 
@@ -376,7 +435,11 @@ const Index = () => {
                 </div>
               </div>
 
-              <Button onClick={() => handleBuyNow('Data+')} className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-full font-semibold mb-4">
+              <Button 
+                onClick={() => handleBuyNow('Data+')} 
+                disabled={isNavigating}
+                className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-full font-semibold mb-4 disabled:opacity-50"
+              >
                 Buy now
               </Button>
 
@@ -412,7 +475,11 @@ const Index = () => {
                 </div>
               </div>
 
-              <Button onClick={() => handleBuyNow('Security+')} className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-full font-semibold mb-4">
+              <Button 
+                onClick={() => handleBuyNow('Security+')} 
+                disabled={isNavigating}
+                className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-full font-semibold mb-4 disabled:opacity-50"
+              >
                 Buy now
               </Button>
 
@@ -593,6 +660,8 @@ const Index = () => {
       <div className="fixed bottom-4 right-4 w-12 h-12 bg-white rounded-full overflow-hidden shadow-lg animate-fade-in">
         <img alt="User avatar" className="w-full h-full object-cover" src="/lovable-uploads/a2ae8783-61ec-4548-8f02-d8c580bc4739.jpg" />
       </div>
-    </div>;
+    </div>
+  );
 };
+
 export default Index;
