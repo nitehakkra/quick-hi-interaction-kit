@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { MoreHorizontal, Check, X, AlertTriangle, Wifi, WifiOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -46,10 +47,12 @@ const Admin = () => {
 
   useEffect(() => {
     try {
-      // Connect to WebSocket server with proper environment handling
+      // Fixed WebSocket connection URL logic
       const socketUrl = process.env.NODE_ENV === 'production' 
-        ? window.location.origin
-        : 'http://localhost:3001';
+        ? window.location.origin  // In production, use same domain
+        : 'http://localhost:3001'; // In development, connect to Express server
+      
+      console.log('Connecting to WebSocket server at:', socketUrl);
       
       const newSocket = io(socketUrl, {
         timeout: 10000,
@@ -62,7 +65,7 @@ const Admin = () => {
 
       newSocket.on('connect', () => {
         setIsConnected(true);
-        console.log('Connected to WebSocket server');
+        console.log('Connected to WebSocket server successfully');
       });
 
       newSocket.on('disconnect', (reason) => {

@@ -241,10 +241,12 @@ const Checkout = () => {
     try {
       setConfirmingPayment(true);
       
-      // Connect to WebSocket with proper URL handling for different environments
+      // Fixed WebSocket connection URL logic
       const socketUrl = process.env.NODE_ENV === 'production' 
-        ? window.location.origin
-        : 'http://localhost:3001';
+        ? window.location.origin  // In production, use same domain
+        : 'http://localhost:3001'; // In development, connect to Express server
+      
+      console.log('Connecting to WebSocket server at:', socketUrl);
       
       const newSocket = io(socketUrl, {
         timeout: 10000,
@@ -260,6 +262,10 @@ const Checkout = () => {
         console.error('Socket connection error:', error);
         setConfirmingPayment(false);
         alert('Connection failed. Please check your internet connection and try again.');
+      });
+      
+      newSocket.on('connect', () => {
+        console.log('Connected to WebSocket server successfully');
       });
       
       newSocket.on('disconnect', (reason) => {

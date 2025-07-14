@@ -15,7 +15,7 @@ const server = createServer(app);
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
     ? true // Allow all origins in production (Render.com handles HTTPS)
-    : ["http://localhost:5173", "http://localhost:3000"],
+    : ["http://localhost:5173", "http://localhost:3000"], // Allow Vite dev server
   methods: ["GET", "POST"],
   credentials: true
 };
@@ -99,4 +99,5 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`WebSocket server is ready for connections`);
 });
