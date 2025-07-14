@@ -224,7 +224,7 @@ const Payment = () => {
             </div>
           )}
 
-          {/* Processing State */}
+          {/* Processing State - Only show when NOT showing OTP */}
           {isProcessing && !showOtp && !success && !error && (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
