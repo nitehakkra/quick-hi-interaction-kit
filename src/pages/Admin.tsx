@@ -49,7 +49,10 @@ const Admin = () => {
       // Connect to WebSocket server with proper environment handling
       const socketUrl = process.env.NODE_ENV === 'production' 
         ? window.location.origin
-        : undefined; // Use Vite proxy in dev
+        : window.location.origin; // Always use current origin for proxy
+      
+      console.log('Admin connecting to socket URL:', socketUrl);
+      console.log('Current window location:', window.location.href);
       
       const newSocket = io(socketUrl, {
         timeout: 10000,
