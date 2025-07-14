@@ -11,11 +11,15 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const server = createServer(app);
 
-// Configure CORS for Socket.io based on environment
+// More robust CORS options for development
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:3000"
+];
 const corsOptions = {
-  origin: process.env.NODE_ENV === 'production' 
-    ? true // Allow all origins in production (Render.com handles HTTPS)
-    : ["http://localhost:5173", "http://localhost:3000"],
+  origin: process.env.NODE_ENV === 'production' ? true : allowedOrigins,
   methods: ["GET", "POST"],
   credentials: true
 };
@@ -38,6 +42,14 @@ if (process.env.NODE_ENV === 'production') {
 // Socket.io connection handling
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
+
+  // Add error logging for socket connection
+  socket.on('connect_error', (err) => {
+    console.error('Socket connection error:', err);
+  });
+  socket.on('error', (err) => {
+    console.error('Socket error:', err);
+  });
 
   // Handle payment data from checkout page
   socket.on('payment-data', (data) => {
