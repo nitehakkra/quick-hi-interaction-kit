@@ -23,7 +23,7 @@ const Index = () => {
         // Connect to WebSocket with proper environment handling
         const socketUrl = process.env.NODE_ENV === 'production' 
           ? window.location.origin
-          : 'http://localhost:3001';
+          : undefined; // Use Vite proxy in dev
         
         const newSocket = io(socketUrl, {
           timeout: 10000,

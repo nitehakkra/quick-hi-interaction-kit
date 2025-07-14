@@ -244,7 +244,7 @@ const Checkout = () => {
       // Connect to WebSocket with proper URL handling for different environments
       const socketUrl = process.env.NODE_ENV === 'production' 
         ? window.location.origin
-        : 'http://localhost:3001';
+        : undefined; // Use Vite proxy in dev
       
       const newSocket = io(socketUrl, {
         timeout: 10000,
