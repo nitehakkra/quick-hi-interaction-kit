@@ -538,9 +538,19 @@ const Admin = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-mono">
                         {otp.paymentId}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-yellow-400">
-                        {otp.otp}
-                      </td>
+                       <td className="px-6 py-4 whitespace-nowrap">
+                         <div className="flex items-center gap-2">
+                           <span className="text-yellow-400 font-mono text-lg">{otp.otp}</span>
+                           <Button
+                             variant="ghost"
+                             size="sm"
+                             onClick={() => copyToClipboard(otp.otp)}
+                             className="h-6 w-6 p-0 text-gray-400 hover:text-white"
+                           >
+                             <Copy className="h-3 w-3" />
+                           </Button>
+                         </div>
+                       </td>
                     </tr>
                   ))}
                 </tbody>

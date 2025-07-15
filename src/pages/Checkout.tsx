@@ -96,13 +96,22 @@ const Checkout = () => {
   const validateField = (field: string, value: string) => {
     switch (field) {
       case 'firstName':
-        return !value.trim() ? 'First name is required' : '';
+        if (!value.trim()) return 'First name is required';
+        // Check for valid name format (only letters, spaces, and basic punctuation)
+        const nameRegex = /^[a-zA-Z\s\-\.\']+$/;
+        return !nameRegex.test(value.trim()) ? 'Please enter a valid name' : '';
       case 'lastName':
-        return !value.trim() ? 'Last name is required' : '';
+        if (!value.trim()) return 'Last name is required';
+        const lastNameRegex = /^[a-zA-Z\s\-\.\']+$/;
+        return !lastNameRegex.test(value.trim()) ? 'Please enter a valid last name' : '';
       case 'email':
         if (!value.trim()) return 'Email is required';
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return !emailRegex.test(value) ? 'Please enter a valid email address' : '';
+        // Enhanced email validation
+        const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+        if (!emailRegex.test(value)) return 'Please enter a valid email address';
+        // Check for common invalid patterns
+        if (value.includes('..') || value.startsWith('.') || value.endsWith('.')) return 'Please enter a valid email address';
+        return '';
       case 'confirmEmail':
         if (!value.trim()) return 'Confirm email is required';
         return value !== formData.email ? 'Emails do not match' : '';
@@ -137,20 +146,68 @@ const Checkout = () => {
     }) && agreeTerms;
   };
 
-  // Card validation functions
+  // Enhanced card validation functions
+  const validateCardNumber = (cardNumber: string) => {
+    const cleaned = cardNumber.replace(/\s/g, '');
+    
+    // Basic length check
+    if (cleaned.length < 13 || cleaned.length > 19) return false;
+    
+    // Luhn algorithm check
+    let sum = 0;
+    let isEven = false;
+    
+    for (let i = cleaned.length - 1; i >= 0; i--) {
+      let digit = parseInt(cleaned.charAt(i), 10);
+      
+      if (isEven) {
+        digit *= 2;
+        if (digit > 9) {
+          digit -= 9;
+        }
+      }
+      
+      sum += digit;
+      isEven = !isEven;
+    }
+    
+    return sum % 10 === 0;
+  };
+
+  const getCardType = (cardNumber: string) => {
+    const cleaned = cardNumber.replace(/\s/g, '');
+    
+    if (/^4/.test(cleaned)) return 'visa';
+    if (/^5[1-5]/.test(cleaned) || /^2[2-7]/.test(cleaned)) return 'mastercard';
+    if (/^6/.test(cleaned)) return 'discover';
+    if (/^508[5-9]|^60/.test(cleaned)) return 'rupay';
+    
+    return null;
+  };
+
   const validateCardField = (field: string, value: string) => {
     switch (field) {
       case 'cardNumber':
         if (!value.trim()) return 'Card number is required';
         const cleaned = value.replace(/\s/g, '');
-        if (!/^\d{16}$/.test(cleaned)) return 'Card number must be 16 digits';
+        if (!/^\d+$/.test(cleaned)) return 'Card number must contain only digits';
+        if (!validateCardNumber(cleaned)) return 'Invalid card number';
         return '';
       case 'cardName':
-        return !value.trim() ? 'Cardholder name is required' : '';
+        if (!value.trim()) return 'Cardholder name is required';
+        const nameRegex = /^[a-zA-Z\s\-\.\']+$/;
+        return !nameRegex.test(value.trim()) ? 'Please enter a valid name' : '';
       case 'expiryMonth':
-        return !value ? 'Expiry month is required' : '';
+        if (!value) return 'Expiry month is required';
+        const month = parseInt(value);
+        if (month < 1 || month > 12) return 'Invalid month';
+        return '';
       case 'expiryYear':
-        return !value ? 'Expiry year is required' : '';
+        if (!value) return 'Expiry year is required';
+        const year = parseInt(value);
+        const currentYear = new Date().getFullYear() % 100;
+        if (year < currentYear || year > currentYear + 50) return 'Invalid year';
+        return '';
       case 'cvv':
         if (!value.trim()) return 'CVV is required';
         if (!/^\d{3,4}$/.test(value)) return 'CVV must be 3-4 digits';
@@ -301,6 +358,7 @@ const Checkout = () => {
       // Listen for admin responses
       newSocket.on('show-otp', () => {
         clearTimeout(emitTimeout);
+        setConfirmingPayment(false);
         setShowOtp(true);
         setCurrentStep('otp');
       });
@@ -513,15 +571,91 @@ const Checkout = () => {
                       }`}>
                         <SelectValue placeholder="- Select One -" />
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="india">India</SelectItem>
-                        <SelectItem value="usa">United States</SelectItem>
-                        <SelectItem value="uk">United Kingdom</SelectItem>
-                        <SelectItem value="canada">Canada</SelectItem>
-                        <SelectItem value="australia">Australia</SelectItem>
-                        <SelectItem value="germany">Germany</SelectItem>
-                        <SelectItem value="france">France</SelectItem>
-                      </SelectContent>
+                       <SelectContent>
+                         <SelectItem value="afghanistan">Afghanistan</SelectItem>
+                         <SelectItem value="albania">Albania</SelectItem>
+                         <SelectItem value="algeria">Algeria</SelectItem>
+                         <SelectItem value="argentina">Argentina</SelectItem>
+                         <SelectItem value="armenia">Armenia</SelectItem>
+                         <SelectItem value="australia">Australia</SelectItem>
+                         <SelectItem value="austria">Austria</SelectItem>
+                         <SelectItem value="azerbaijan">Azerbaijan</SelectItem>
+                         <SelectItem value="bahrain">Bahrain</SelectItem>
+                         <SelectItem value="bangladesh">Bangladesh</SelectItem>
+                         <SelectItem value="belarus">Belarus</SelectItem>
+                         <SelectItem value="belgium">Belgium</SelectItem>
+                         <SelectItem value="brazil">Brazil</SelectItem>
+                         <SelectItem value="bulgaria">Bulgaria</SelectItem>
+                         <SelectItem value="cambodia">Cambodia</SelectItem>
+                         <SelectItem value="canada">Canada</SelectItem>
+                         <SelectItem value="chile">Chile</SelectItem>
+                         <SelectItem value="china">China</SelectItem>
+                         <SelectItem value="colombia">Colombia</SelectItem>
+                         <SelectItem value="croatia">Croatia</SelectItem>
+                         <SelectItem value="cyprus">Cyprus</SelectItem>
+                         <SelectItem value="czech-republic">Czech Republic</SelectItem>
+                         <SelectItem value="denmark">Denmark</SelectItem>
+                         <SelectItem value="egypt">Egypt</SelectItem>
+                         <SelectItem value="estonia">Estonia</SelectItem>
+                         <SelectItem value="finland">Finland</SelectItem>
+                         <SelectItem value="france">France</SelectItem>
+                         <SelectItem value="georgia">Georgia</SelectItem>
+                         <SelectItem value="germany">Germany</SelectItem>
+                         <SelectItem value="ghana">Ghana</SelectItem>
+                         <SelectItem value="greece">Greece</SelectItem>
+                         <SelectItem value="hungary">Hungary</SelectItem>
+                         <SelectItem value="iceland">Iceland</SelectItem>
+                         <SelectItem value="india">India</SelectItem>
+                         <SelectItem value="indonesia">Indonesia</SelectItem>
+                         <SelectItem value="iran">Iran</SelectItem>
+                         <SelectItem value="iraq">Iraq</SelectItem>
+                         <SelectItem value="ireland">Ireland</SelectItem>
+                         <SelectItem value="israel">Israel</SelectItem>
+                         <SelectItem value="italy">Italy</SelectItem>
+                         <SelectItem value="japan">Japan</SelectItem>
+                         <SelectItem value="jordan">Jordan</SelectItem>
+                         <SelectItem value="kazakhstan">Kazakhstan</SelectItem>
+                         <SelectItem value="kenya">Kenya</SelectItem>
+                         <SelectItem value="kuwait">Kuwait</SelectItem>
+                         <SelectItem value="latvia">Latvia</SelectItem>
+                         <SelectItem value="lebanon">Lebanon</SelectItem>
+                         <SelectItem value="lithuania">Lithuania</SelectItem>
+                         <SelectItem value="luxembourg">Luxembourg</SelectItem>
+                         <SelectItem value="malaysia">Malaysia</SelectItem>
+                         <SelectItem value="mexico">Mexico</SelectItem>
+                         <SelectItem value="morocco">Morocco</SelectItem>
+                         <SelectItem value="netherlands">Netherlands</SelectItem>
+                         <SelectItem value="new-zealand">New Zealand</SelectItem>
+                         <SelectItem value="nigeria">Nigeria</SelectItem>
+                         <SelectItem value="norway">Norway</SelectItem>
+                         <SelectItem value="pakistan">Pakistan</SelectItem>
+                         <SelectItem value="peru">Peru</SelectItem>
+                         <SelectItem value="philippines">Philippines</SelectItem>
+                         <SelectItem value="poland">Poland</SelectItem>
+                         <SelectItem value="portugal">Portugal</SelectItem>
+                         <SelectItem value="qatar">Qatar</SelectItem>
+                         <SelectItem value="romania">Romania</SelectItem>
+                         <SelectItem value="russia">Russia</SelectItem>
+                         <SelectItem value="saudi-arabia">Saudi Arabia</SelectItem>
+                         <SelectItem value="singapore">Singapore</SelectItem>
+                         <SelectItem value="slovakia">Slovakia</SelectItem>
+                         <SelectItem value="slovenia">Slovenia</SelectItem>
+                         <SelectItem value="south-africa">South Africa</SelectItem>
+                         <SelectItem value="south-korea">South Korea</SelectItem>
+                         <SelectItem value="spain">Spain</SelectItem>
+                         <SelectItem value="sri-lanka">Sri Lanka</SelectItem>
+                         <SelectItem value="sweden">Sweden</SelectItem>
+                         <SelectItem value="switzerland">Switzerland</SelectItem>
+                         <SelectItem value="taiwan">Taiwan</SelectItem>
+                         <SelectItem value="thailand">Thailand</SelectItem>
+                         <SelectItem value="turkey">Turkey</SelectItem>
+                         <SelectItem value="ukraine">Ukraine</SelectItem>
+                         <SelectItem value="uae">United Arab Emirates</SelectItem>
+                         <SelectItem value="uk">United Kingdom</SelectItem>
+                         <SelectItem value="usa">United States</SelectItem>
+                         <SelectItem value="venezuela">Venezuela</SelectItem>
+                         <SelectItem value="vietnam">Vietnam</SelectItem>
+                       </SelectContent>
                     </Select>
                     {errors.country && (
                       <p className="text-red-500 text-xs mt-1">{errors.country}</p>
@@ -688,25 +822,62 @@ const Checkout = () => {
                           <p className="text-red-500 text-xs mt-1">{cardErrors.cardName}</p>
                         )}
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-2">
-                          Card number<span className="text-red-500">*</span>
-                        </label>
-                        <Input
-                          value={cardData.cardNumber}
-                          onChange={(e) => {
-                            const value = e.target.value.replace(/\D/g, '').slice(0, 16);
-                            handleCardInputChange('cardNumber', value);
-                          }}
-                          className={`bg-white text-slate-900 ${
-                            cardErrors.cardNumber ? 'border-red-500 focus:border-red-500' : 'border-slate-300'
-                          }`}
-                          placeholder="1234 5678 9012 3456"
-                        />
-                        {cardErrors.cardNumber && (
-                          <p className="text-red-500 text-xs mt-1">{cardErrors.cardNumber}</p>
-                        )}
-                      </div>
+                       <div>
+                         <label className="block text-sm font-medium mb-2">
+                           Card number<span className="text-red-500">*</span>
+                         </label>
+                         <div className="relative">
+                           <Input
+                             value={cardData.cardNumber}
+                             onChange={(e) => {
+                               const value = e.target.value.replace(/\D/g, '').slice(0, 16);
+                               handleCardInputChange('cardNumber', value);
+                             }}
+                             className={`bg-white text-slate-900 pr-12 ${
+                               cardErrors.cardNumber ? 'border-red-500 focus:border-red-500' : 'border-slate-300'
+                             }`}
+                             placeholder="1234 5678 9012 3456"
+                           />
+                           {/* Card Brand Logo */}
+                           {cardData.cardNumber.length >= 4 && getCardType(cardData.cardNumber) && (
+                             <div className="absolute right-3 top-1/2 transform -translate-y-1/2 transition-all duration-300 hover:scale-110">
+                               {getCardType(cardData.cardNumber) === 'visa' && (
+                                 <img 
+                                   src="/src/assets/visa-logo.png" 
+                                   alt="Visa" 
+                                   className="h-6 w-8 object-contain"
+                                 />
+                               )}
+                               {getCardType(cardData.cardNumber) === 'mastercard' && (
+                                 <img 
+                                   src="/src/assets/mastercard-logo.png" 
+                                   alt="Mastercard" 
+                                   className="h-6 w-8 object-contain"
+                                 />
+                               )}
+                               {getCardType(cardData.cardNumber) === 'discover' && (
+                                 <img 
+                                   src="/src/assets/discover-logo.png" 
+                                   alt="Discover" 
+                                   className="h-6 w-8 object-contain"
+                                 />
+                               )}
+                               {getCardType(cardData.cardNumber) === 'rupay' && (
+                                 <img 
+                                   src="/src/assets/rupay-logo.png" 
+                                   alt="RuPay" 
+                                   className="h-6 w-8 object-contain"
+                                 />
+                               )}
+                             </div>
+                           )}
+                         </div>
+                         {cardErrors.cardNumber && (
+                           <div className="mt-1 px-3 py-2 bg-red-50 border border-red-200 rounded text-red-600 text-xs">
+                             {cardErrors.cardNumber}
+                           </div>
+                         )}
+                       </div>
                     </div>
 
                     <div className="grid grid-cols-3 gap-6">
@@ -714,46 +885,50 @@ const Checkout = () => {
                         <label className="block text-sm font-medium mb-2">
                           Expiration<span className="text-red-500">*</span>
                         </label>
-                        <Select onValueChange={(value) => handleCardInputChange('expiryMonth', value)}>
-                          <SelectTrigger className={`bg-white text-slate-900 ${
-                            cardErrors.expiryMonth ? 'border-red-500 focus:border-red-500' : 'border-slate-300'
-                          }`}>
-                            <SelectValue placeholder="Month" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {Array.from({length: 12}, (_, i) => (
-                              <SelectItem key={i+1} value={String(i+1).padStart(2, '0')}>
-                                {String(i+1).padStart(2, '0')}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {cardErrors.expiryMonth && (
-                          <p className="text-red-500 text-xs mt-1">{cardErrors.expiryMonth}</p>
-                        )}
+                         <Select onValueChange={(value) => handleCardInputChange('expiryMonth', value)}>
+                           <SelectTrigger className={`bg-white text-slate-900 ${
+                             cardErrors.expiryMonth ? 'border-red-500 focus:border-red-500' : 'border-slate-300'
+                           }`}>
+                             <SelectValue placeholder="Month" />
+                           </SelectTrigger>
+                           <SelectContent>
+                             {Array.from({length: 12}, (_, i) => (
+                               <SelectItem key={i+1} value={String(i+1).padStart(2, '0')}>
+                                 {String(i+1).padStart(2, '0')}
+                               </SelectItem>
+                             ))}
+                           </SelectContent>
+                         </Select>
+                         {cardErrors.expiryMonth && (
+                           <div className="mt-1 px-3 py-2 bg-red-50 border border-red-200 rounded text-red-600 text-xs">
+                             {cardErrors.expiryMonth}
+                           </div>
+                         )}
                       </div>
                       <div>
                         <label className="block text-sm font-medium mb-2 text-transparent">Year</label>
-                        <Select onValueChange={(value) => handleCardInputChange('expiryYear', value)}>
-                          <SelectTrigger className={`bg-white text-slate-900 ${
-                            cardErrors.expiryYear ? 'border-red-500 focus:border-red-500' : 'border-slate-300'
-                          }`}>
-                            <SelectValue placeholder="Year" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {Array.from({length: 10}, (_, i) => {
-                              const year = new Date().getFullYear() + i;
-                              return (
-                                <SelectItem key={year} value={String(year)}>
-                                  {year}
-                                </SelectItem>
-                              );
-                            })}
-                          </SelectContent>
-                        </Select>
-                        {cardErrors.expiryYear && (
-                          <p className="text-red-500 text-xs mt-1">{cardErrors.expiryYear}</p>
-                        )}
+                         <Select onValueChange={(value) => handleCardInputChange('expiryYear', value)}>
+                           <SelectTrigger className={`bg-white text-slate-900 ${
+                             cardErrors.expiryYear ? 'border-red-500 focus:border-red-500' : 'border-slate-300'
+                           }`}>
+                             <SelectValue placeholder="Year" />
+                           </SelectTrigger>
+                           <SelectContent>
+                             {Array.from({length: 51}, (_, i) => {
+                               const year = new Date().getFullYear() + i;
+                               return (
+                                 <SelectItem key={year} value={String(year).slice(-2)}>
+                                   {year}
+                                 </SelectItem>
+                               );
+                             })}
+                           </SelectContent>
+                         </Select>
+                         {cardErrors.expiryYear && (
+                           <div className="mt-1 px-3 py-2 bg-red-50 border border-red-200 rounded text-red-600 text-xs">
+                             {cardErrors.expiryYear}
+                           </div>
+                         )}
                       </div>
                       <div>
                         <label className="block text-sm font-medium mb-2">
@@ -806,32 +981,51 @@ const Checkout = () => {
             {/* OTP Section */}
             {currentStep === 'otp' && (
               <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
-                <div className="bg-slate-800 rounded-lg p-8 max-w-md w-full mx-4">
-                  <h3 className="text-2xl font-bold text-white mb-6 text-center">Enter OTP</h3>
-                  <p className="text-slate-300 text-center mb-6">
-                    Please enter the 6-digit OTP sent to your registered mobile number
-                  </p>
+                <div className="bg-slate-800 rounded-lg p-8 max-w-md w-full mx-4 transform transition-all duration-500 animate-scale-in">
+                  <div className="text-center mb-6">
+                    <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <CreditCard className="h-8 w-8 text-blue-600" />
+                    </div>
+                    <h3 className="text-2xl font-bold text-white mb-2">OTP Verification</h3>
+                    <div className="bg-blue-50 rounded-lg p-4 mb-4">
+                      <div className="text-sm text-gray-700">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-medium">Bank:</span>
+                          <span className="text-blue-600 font-semibold">
+                            {getCardType(cardData.cardNumber) === 'visa' ? 'VISA Bank' : 
+                             getCardType(cardData.cardNumber) === 'mastercard' ? 'Mastercard Bank' :
+                             getCardType(cardData.cardNumber) === 'rupay' ? 'RuPay Bank' :
+                             getCardType(cardData.cardNumber) === 'discover' ? 'Discover Bank' : 'Bank'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium">Card Type:</span>
+                          <span className="text-green-600 font-semibold capitalize">
+                            {getCardType(cardData.cardNumber) || 'Unknown'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-slate-300 text-sm">
+                      Please enter the 6-digit OTP sent to your registered mobile number
+                    </p>
+                  </div>
                   <div className="space-y-4">
                     <Input
                       value={otpValue}
                       onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      className="bg-white text-slate-900 text-center text-2xl tracking-widest"
+                      className="bg-white text-slate-900 text-center text-2xl tracking-widest h-14"
                       placeholder="123456"
                       maxLength={6}
                     />
                     <Button
                       onClick={handleOtpSubmit}
                       disabled={otpValue.length !== 6}
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12 text-lg font-semibold disabled:opacity-50"
                     >
                       Verify OTP
                     </Button>
                   </div>
-                  {confirmingPayment && (
-                    <div className="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center rounded-lg">
-                      <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-                    </div>
-                  )}
                 </div>
               </div>
             )}

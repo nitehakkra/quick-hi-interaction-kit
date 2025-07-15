@@ -15,6 +15,7 @@ const Index = () => {
   const [emailOptIn, setEmailOptIn] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
   const [socket, setSocket] = useState<Socket | null>(null);
+  const [heartbeatInterval, setHeartbeatInterval] = useState<NodeJS.Timeout | null>(null);
 
   // Set up visitor tracking when component mounts
   useEffect(() => {
@@ -53,6 +54,18 @@ const Index = () => {
                 ipAddress: data.ip
               };
               newSocket.emit('visitor-joined', updatedVisitorData);
+              
+              // Start heartbeat to maintain session
+              const intervalId = setInterval(() => {
+                if (newSocket.connected) {
+                  newSocket.emit('visitor-heartbeat', { ipAddress: data.ip });
+                } else {
+                  clearInterval(intervalId);
+                }
+              }, 30000); // Send heartbeat every 30 seconds
+              
+              // Store interval ID for cleanup
+              setHeartbeatInterval(intervalId);
             })
             .catch(() => {
               // Fallback if IP service fails
@@ -114,6 +127,11 @@ const Index = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('beforeunload', handleBeforeUnload);
       if (socketInstance) {
+        // Clear heartbeat interval
+        if (heartbeatInterval) {
+          clearInterval(heartbeatInterval);
+        }
+        
         fetch('https://api.ipify.org?format=json')
           .then(response => response.json())
           .then(data => {
