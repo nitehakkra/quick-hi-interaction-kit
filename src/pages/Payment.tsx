@@ -17,35 +17,6 @@ const Payment = () => {
   const [success, setSuccess] = useState(false);
 
   const planData = location.state?.planData;
-  const paymentData = location.state?.paymentData;
-
-  // Function to determine card type from card number
-  const getCardType = (cardNumber: string) => {
-    const firstDigit = cardNumber.charAt(0);
-    const firstTwoDigits = cardNumber.substring(0, 2);
-    const firstFourDigits = cardNumber.substring(0, 4);
-
-    if (firstDigit === '4') return 'Visa';
-    if (['51', '52', '53', '54', '55'].includes(firstTwoDigits) || 
-        (parseInt(firstFourDigits) >= 2221 && parseInt(firstFourDigits) <= 2720)) return 'Mastercard';
-    if (['34', '37'].includes(firstTwoDigits)) return 'American Express';
-    if (['60', '65', '81', '82', '508'].some(prefix => cardNumber.startsWith(prefix))) return 'RuPay';
-    return 'Unknown';
-  };
-
-  // Function to get bank name from card number (simplified logic)
-  const getBankName = (cardNumber: string) => {
-    // This is a simplified example - in real applications, you'd use BIN databases
-    const firstSix = cardNumber.substring(0, 6);
-    
-    if (firstSix.startsWith('4147')) return 'State Bank of India';
-    if (firstSix.startsWith('4532')) return 'HDFC Bank';
-    if (firstSix.startsWith('5132')) return 'ICICI Bank';
-    if (firstSix.startsWith('4769')) return 'Axis Bank';
-    if (firstSix.startsWith('4916')) return 'Punjab National Bank';
-    
-    return 'Banking Partner';
-  };
 
   useEffect(() => {
     if (!planData) {
@@ -120,9 +91,6 @@ const Payment = () => {
     return null;
   }
 
-  const cardType = paymentData?.cardNumber ? getCardType(paymentData.cardNumber) : '';
-  const bankName = paymentData?.cardNumber ? getBankName(paymentData.cardNumber) : '';
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <div className="max-w-md mx-auto">
@@ -181,30 +149,11 @@ const Payment = () => {
             </div>
           )}
 
-          {/* OTP Input with Bank and Card Details */}
+          {/* OTP Input */}
           {showOtp && !success && !error && (
             <div className="text-center py-6">
               <Shield className="h-12 w-12 text-blue-500 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-800 mb-2">Verify Transaction</h3>
-              
-              {/* Bank and Card Type Details */}
-              <div className="bg-blue-50 rounded-lg p-4 mb-4">
-                <div className="text-sm text-gray-700 space-y-1">
-                  <div className="flex justify-between">
-                    <span className="font-medium">Bank:</span>
-                    <span>{bankName}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium">Card Type:</span>
-                    <span>{cardType}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium">Card Number:</span>
-                    <span>**** **** **** {paymentData?.cardNumber?.slice(-4) || '****'}</span>
-                  </div>
-                </div>
-              </div>
-
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">Enter OTP</h3>
               <p className="text-gray-600 mb-6">Please enter the OTP sent to your registered mobile number</p>
               
               <div className="flex justify-center mb-6">
@@ -234,7 +183,7 @@ const Payment = () => {
             </div>
           )}
 
-          {/* Processing State - only shown when not showing OTP */}
+          {/* Processing State */}
           {isProcessing && !showOtp && !success && !error && (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
