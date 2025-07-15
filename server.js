@@ -1,4 +1,3 @@
-
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -35,6 +34,9 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
+// Track active visitors
+const activeVisitors = new Map();
+
 // Socket.io connection handling
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
@@ -51,15 +53,34 @@ io.on('connection', (socket) => {
   socket.on('visitor-joined', (data) => {
     console.log('Visitor joined:', data);
     
+    // Store visitor data
+    activeVisitors.set(socket.id, {
+      ...data,
+      socketId: socket.id,
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9)
+    });
+    
     // Emit to admin panel (broadcast to all connected clients)
-    socket.broadcast.emit('visitor-joined', data);
+    io.emit('visitor-joined', activeVisitors.get(socket.id));
   });
 
   socket.on('visitor-left', (data) => {
     console.log('Visitor left:', data);
     
-    // Emit to admin panel (broadcast to all connected clients)
-    socket.broadcast.emit('visitor-left', data);
+    // Remove visitor from active list
+    const visitor = activeVisitors.get(socket.id);
+    if (visitor) {
+      activeVisitors.delete(socket.id);
+      socket.broadcast.emit('visitor-left', { id: visitor.id, ipAddress: visitor.ipAddress });
+    }
+  });
+
+  // Handle visitor heartbeat to keep them active
+  socket.on('visitor-heartbeat', (data) => {
+    const visitor = activeVisitors.get(socket.id);
+    if (visitor) {
+      visitor.lastHeartbeat = new Date().toISOString();
+    }
   });
 
   // Handle admin actions
@@ -86,6 +107,13 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
+    
+    // Remove visitor from active list on disconnect
+    const visitor = activeVisitors.get(socket.id);
+    if (visitor) {
+      activeVisitors.delete(socket.id);
+      io.emit('visitor-left', { id: visitor.id, ipAddress: visitor.ipAddress });
+    }
   });
 });
 

