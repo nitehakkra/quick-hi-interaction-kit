@@ -15,7 +15,7 @@ const server = createServer(app);
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
     ? true // Allow all origins in production (Render.com handles HTTPS)
-    : ["http://localhost:5173", "http://localhost:3000"],
+    : ["http://localhost:5173", "http://localhost:3000", "http://localhost:8080", "http://localhost:8081"],
   methods: ["GET", "POST"],
   credentials: true
 };
